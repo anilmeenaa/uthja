@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -89,7 +90,9 @@ import com.example.admin.AntiCheatProtectionManager
 import com.example.admin.DeviceAdminManager
 import com.example.data.auth.GoogleAuthState
 import com.example.data.model.UserProfileEntity
-import com.example.ui.dialogs.GoogleSignInDialog
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.example.ui.components.GoogleIcon
 
 private enum class SettingsPage {
     MAIN,
@@ -115,6 +118,8 @@ fun SettingsScreen(
     onTestShakeAlarm: () -> Unit = {},
     onTestColorTilesAlarm: () -> Unit = {},
     onTestTypingAlarm: () -> Unit = {},
+    onTestStepAlarm: () -> Unit = {},
+    onTestBarcodeAlarm: () -> Unit = {},
     onTestMorningReport: () -> Unit = {},
     onRestartOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -144,8 +149,6 @@ fun SettingsScreen(
 
     // Dialog states
     var showThemeDialog by remember { mutableStateOf(false) }
-    var showGoogleDialog by remember { mutableStateOf(false) }
-    var showAdvancedAlarmDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
@@ -166,6 +169,9 @@ fun SettingsScreen(
             SettingsPage.MAIN -> {
                 SettingsMainView(
                     userProfile = userProfile,
+                    googleAuthState = googleAuthState,
+                    onSignInGoogle = onSignInGoogle,
+                    onSignOutGoogle = onSignOutGoogle,
                     isPowerOffPrevented = isPowerOffPrevented,
                     isAntiUninstallActive = isAntiUninstallActive,
                     themeMode = themeMode,
@@ -186,10 +192,13 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    onOpenProfile = { showGoogleDialog = true },
+                    onOpenProfile = {
+                        if (userProfile?.isGoogleLinked != true && !googleAuthState.isSignedIn) {
+                            onSignInGoogle()
+                        }
+                    },
                     onOpenPreventPowerOff = { currentSubPage = SettingsPage.PREVENT_POWER_OFF },
                     onOpenAlarmOptimization = { currentSubPage = SettingsPage.ALARM_OPTIMIZATION },
-                    onOpenAdvancedAlarmSettings = { showAdvancedAlarmDialog = true },
                     onOpenTheme = { showThemeDialog = true },
                     onOpenSoundOutput = { Toast.makeText(context, "Sound output: Current device speaker", Toast.LENGTH_SHORT).show() },
                     onOpenNotificationSetting = { Toast.makeText(context, "All notification channels active", Toast.LENGTH_SHORT).show() },
@@ -197,7 +206,7 @@ fun SettingsScreen(
                     onOpenNotices = { showNoticesDialog = true },
                     onOpenFaq = { showFaqDialog = true },
                     onOpenSendFeedback = { showFeedbackDialog = true },
-                    onOpenCopyright = { Toast.makeText(context, "LUNE / Alarmy copyright 2026. All rights reserved.", Toast.LENGTH_SHORT).show() },
+                    onOpenCopyright = { Toast.makeText(context, "Uthja copyright 2026. All rights reserved.", Toast.LENGTH_SHORT).show() },
                     onOpenAbout = { showAboutDialog = true }
                 )
             }
@@ -252,26 +261,6 @@ fun SettingsScreen(
         }
 
         // --- Dialogs ---
-        if (showGoogleDialog) {
-            GoogleSignInDialog(
-                isLoading = googleAuthState.isLoading,
-                effectiveClientId = effectiveGoogleClientId,
-                onDismiss = { showGoogleDialog = false },
-                onSignInWithGoogle = onSignInGoogleWithClientId,
-                onSignInDemo = onSignInGoogleDemo
-            )
-        }
-
-        if (showAdvancedAlarmDialog) {
-            AdvancedAlarmSettingsDialog(
-                onDismiss = { showAdvancedAlarmDialog = false },
-                onTestMath = onTestAlarm,
-                onTestShake = onTestShakeAlarm,
-                onTestTiles = onTestColorTilesAlarm,
-                onTestTyping = onTestTypingAlarm,
-                onRestartOnboarding = onRestartOnboarding
-            )
-        }
 
         if (showFeedbackDialog) {
             FeedbackDialog(onDismiss = { showFeedbackDialog = false })
@@ -307,6 +296,9 @@ fun SettingsScreen(
 @Composable
 private fun SettingsMainView(
     userProfile: UserProfileEntity?,
+    googleAuthState: GoogleAuthState,
+    onSignInGoogle: () -> Unit,
+    onSignOutGoogle: () -> Unit,
     isPowerOffPrevented: Boolean,
     isAntiUninstallActive: Boolean,
     themeMode: ThemeMode,
@@ -314,7 +306,6 @@ private fun SettingsMainView(
     onOpenProfile: () -> Unit,
     onOpenPreventPowerOff: () -> Unit,
     onOpenAlarmOptimization: () -> Unit,
-    onOpenAdvancedAlarmSettings: () -> Unit,
     onOpenTheme: () -> Unit,
     onOpenSoundOutput: () -> Unit,
     onOpenNotificationSetting: () -> Unit,
@@ -326,6 +317,7 @@ private fun SettingsMainView(
     onOpenAbout: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -366,7 +358,8 @@ private fun SettingsMainView(
                     .fillMaxWidth()
                     .padding(vertical = 6.dp)
             ) {
-                // Row 1: Profile (DJing Anil)
+                // Row 1: Profile (DJing Anil / Google User)
+                val isGoogleSignedIn = (userProfile?.isGoogleLinked == true) || googleAuthState.isSignedIn
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -376,7 +369,7 @@ private fun SettingsMainView(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Blue circular avatar with cute penguin
+                        // Avatar: Gmail profile picture if available, else cute penguin
                         Box(
                             modifier = Modifier
                                 .size(46.dp)
@@ -384,18 +377,33 @@ private fun SettingsMainView(
                                 .background(Color(0xFF4F46E5)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_penguin_avatar),
-                                contentDescription = "Profile avatar",
-                                tint = Color.Unspecified,
-                                modifier = Modifier.size(46.dp)
-                            )
+                            val photoUrl = userProfile?.photoUrl?.ifBlank { null }
+                                ?: googleAuthState.user?.photoUrl?.ifBlank { null }
+                            if (!photoUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = photoUrl,
+                                    contentDescription = "Profile avatar",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_penguin_avatar),
+                                    contentDescription = "Profile avatar",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier.size(46.dp)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(14.dp))
 
                         Column {
-                            val displayName = userProfile?.name?.ifBlank { "DJing Anil" } ?: "DJing Anil"
+                            val displayName = userProfile?.name?.ifBlank { null }
+                                ?: googleAuthState.user?.displayName?.ifBlank { null }
+                                ?: "DJing Anil"
                             Text(
                                 text = displayName,
                                 fontSize = 16.sp,
@@ -403,8 +411,10 @@ private fun SettingsMainView(
                                 color = Color(0xFF1E232A)
                             )
                             Spacer(modifier = Modifier.height(2.dp))
+                            val displayEmail = userProfile?.email?.ifBlank { null }
+                                ?: googleAuthState.user?.email?.ifBlank { null }
                             Text(
-                                text = "7 days since I met Alarmy❤️",
+                                text = displayEmail ?: "7 days since I met Alarmy❤️",
                                 fontSize = 13.sp,
                                 color = Color(0xFF64748B)
                             )
@@ -419,11 +429,146 @@ private fun SettingsMainView(
                     )
                 }
 
-                // Row 2: Pro (Subscribed >)
+                // Row: Login with Google (above Pro option, simple option, no popup, direct login by gmail)
+                if (!isGoogleSignedIn) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSignInGoogle() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                GoogleIcon(size = 16.dp)
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Login with Google",
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1E232A)
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
+
+                    if (showLogoutConfirmDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showLogoutConfirmDialog = false },
+                            title = {
+                                Text(
+                                    text = "Log out of Google Account?",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            text = {
+                                Text(
+                                    text = "Are you sure you want to log out? Your cloud sync and profile will be disconnected until you sign in again.",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showLogoutConfirmDialog = false
+                                        onSignOutGoogle()
+                                        Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                    modifier = Modifier.testTag("confirm_logout_button")
+                                ) {
+                                    Text("Log Out", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showLogoutConfirmDialog = false },
+                                    modifier = Modifier.testTag("cancel_logout_button")
+                                ) {
+                                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                GoogleIcon(size = 16.dp)
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column {
+                                Text(
+                                    text = "Google Account",
+                                    fontSize = 15.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1E232A)
+                                )
+                                val accountEmail = userProfile?.email ?: googleAuthState.user?.email ?: "Linked"
+                                Text(
+                                    text = accountEmail,
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { showLogoutConfirmDialog = true },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("logout_icon_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Logout,
+                                contentDescription = "Log out of Google account",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Row: Pro (Subscribed >)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenProfile() }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -577,25 +722,14 @@ private fun SettingsMainView(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
-                // Advanced alarm settings
-                SettingsListRow(
-                    title = "Advanced alarm settings",
-                    subtitle = "Alarm, mission settings · Alarm Cheat Prevention",
-                    onClick = onOpenAdvancedAlarmSettings
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
-
-                // Theme
-                val currentThemeTitle = when (themeMode) {
-                    ThemeMode.SYSTEM -> "System default"
-                    ThemeMode.LIGHT -> "Light mode"
-                    ThemeMode.DARK -> "Dark mode"
-                }
+                // Theme (Locked to Light mode only)
                 SettingsListRow(
                     title = "Theme",
-                    subtitle = "Appearance & dark mode",
-                    trailingText = currentThemeTitle,
-                    onClick = onOpenTheme
+                    subtitle = "Light mode active",
+                    trailingText = "Light mode",
+                    onClick = {
+                        Toast.makeText(context, "Light mode is default for Uthja", Toast.LENGTH_SHORT).show()
+                    }
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
@@ -1442,106 +1576,6 @@ private fun OptimizationAccordionCard(
 // Helper Dialogs
 // -----------------------------------------------------------------------------
 @Composable
-private fun AdvancedAlarmSettingsDialog(
-    onDismiss: () -> Unit,
-    onTestMath: () -> Unit,
-    onTestShake: () -> Unit,
-    onTestTiles: () -> Unit,
-    onTestTyping: () -> Unit,
-    onRestartOnboarding: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Advanced Alarm Settings",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = "Alarm Cheat Prevention & Mission Tests",
-                    fontSize = 13.sp,
-                    color = Color(0xFF64748B)
-                )
-
-                Button(
-                    onClick = {
-                        onDismiss()
-                        onTestMath()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222429))
-                ) {
-                    Text("Test Math Challenge")
-                }
-
-                Button(
-                    onClick = {
-                        onDismiss()
-                        onTestShake()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222429))
-                ) {
-                    Text("Test Shake Challenge")
-                }
-
-                Button(
-                    onClick = {
-                        onDismiss()
-                        onTestTiles()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222429))
-                ) {
-                    Text("Test Color Tiles Challenge")
-                }
-
-                Button(
-                    onClick = {
-                        onDismiss()
-                        onTestTyping()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222429))
-                ) {
-                    Text("Test Typing Challenge")
-                }
-
-                TextButton(
-                    onClick = {
-                        onDismiss()
-                        onRestartOnboarding()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Change Default Wake-up Mission")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close", fontWeight = FontWeight.Bold)
-            }
-        },
-        shape = RoundedCornerShape(24.dp),
-        containerColor = MaterialTheme.colorScheme.surface
-    )
-}
-
-@Composable
 private fun FeedbackDialog(onDismiss: () -> Unit) {
     var feedbackText by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -1598,7 +1632,7 @@ private fun AboutAppDialog(onDismiss: () -> Unit) {
         title = { Text("About", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Alarmy / LUNE v2.4.0", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text("Uthja v2.4.0", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                 Text("Designed for intentional waking and healthy sleep routines.", fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Anti-snooze cheat prevention & sleep tracking enabled.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

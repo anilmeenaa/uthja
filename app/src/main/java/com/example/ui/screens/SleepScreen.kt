@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +89,8 @@ fun SleepScreen(
     activeSleep: ActiveSleepState,
     sleepSessions: List<SleepSessionEntity>,
     snoreEvents: List<SnoreEventEntity> = emptyList(),
+    alarms: List<com.example.data.model.AlarmEntity> = emptyList(),
+    alarmEvents: List<com.example.data.model.AlarmEventEntity> = emptyList(),
     userProfile: UserProfileEntity?,
     onStartSleep: () -> Unit,
     onFinishSleep: () -> Unit,
@@ -96,6 +99,7 @@ fun SleepScreen(
     onSimulateOvernight: () -> Unit = {},
     onViewReport: (SleepSessionEntity) -> Unit = {},
     onAddHabitAlarm: () -> Unit = {},
+    onGuidanceVisibilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -109,40 +113,59 @@ fun SleepScreen(
     var showSoundPicker by remember { mutableStateOf(false) }
     var showPermissionRationale by remember { mutableStateOf(false) }
 
+    // Notify parent whenever guidance visibility changes to hide the bottom navigation bar
+    LaunchedEffect(showGuidance) {
+        onGuidanceVisibilityChanged(showGuidance)
+    }
+
+    val startTrackingSession = {
+        onStartSleep()
+        showActiveTrackingScreen = true
+    }
+
     // Microphone runtime permission launcher
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            val neverShow = prefs.getBoolean("never_show_guidance", false)
-            if (neverShow) {
-                onStartSleep()
-                showActiveTrackingScreen = true
-            } else {
-                showGuidance = true
-            }
+        val neverShow = prefs.getBoolean("never_show_guidance", false)
+        if (neverShow) {
+            startTrackingSession()
         } else {
-            showPermissionRationale = true
+            showGuidance = true
         }
     }
 
     val requestStartTracking = {
-        val hasMic = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasMic) {
-            val neverShow = prefs.getBoolean("never_show_guidance", false)
-            if (neverShow) {
-                onStartSleep()
-                showActiveTrackingScreen = true
-            } else {
-                showGuidance = true
-            }
+        if (activeSleep.isTracking) {
+            showActiveTrackingScreen = true
         } else {
-            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            val hasMic = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+
+            val neverShow = prefs.getBoolean("never_show_guidance", false)
+            if (hasMic) {
+                if (neverShow) {
+                    startTrackingSession()
+                } else {
+                    showGuidance = true
+                }
+            } else {
+                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
         }
+    }
+
+    // Handle back button for sub-pages
+    BackHandler(enabled = showGuidance) {
+        showGuidance = false
+    }
+    BackHandler(enabled = !showGuidance && showActiveTrackingScreen) {
+        showActiveTrackingScreen = false
+    }
+    BackHandler(enabled = !showGuidance && !showActiveTrackingScreen && showReportScreen) {
+        showReportScreen = false
     }
 
     // Ambient sound playback engine
@@ -291,88 +314,102 @@ fun SleepScreen(
                                 modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
                             )
 
-                            // Semi-circular Arc Gauge Meter
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 220.dp, height = 180.dp)
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
+                            // Semi-circular Arc Gauge Meter & Sleep Quality Content
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                val trackArcColor = MaterialTheme.colorScheme.surfaceVariant
-                                val activeArcColor = MaterialTheme.colorScheme.primary
-                                Canvas(modifier = Modifier.size(190.dp)) {
-                                    val strokeW = 18.dp.toPx()
-                                    val arcSize = size.width - strokeW
-                                    val topLeft = Offset(strokeW / 2f, strokeW / 2f)
-                                    val startAngle = 145f
-                                    val totalSweep = 250f
+                                Box(
+                                    modifier = Modifier
+                                        .size(230.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    val trackArcColor = MaterialTheme.colorScheme.surfaceVariant
+                                    val activeArcColor = MaterialTheme.colorScheme.primary
 
-                                    // Background Track Arc
-                                    drawArc(
-                                        color = trackArcColor,
-                                        startAngle = startAngle,
-                                        sweepAngle = totalSweep,
-                                        useCenter = false,
-                                        topLeft = topLeft,
-                                        size = Size(arcSize, arcSize),
-                                        style = Stroke(width = strokeW, cap = StrokeCap.Round)
-                                    )
+                                    Canvas(modifier = Modifier.size(216.dp)) {
+                                        val strokeW = 16.dp.toPx()
+                                        val arcSize = size.width - strokeW
+                                        val topLeft = Offset(strokeW / 2f, strokeW / 2f)
+                                        val startAngle = 145f
+                                        val totalSweep = 250f
 
-                                    // Active Track Arc
-                                    val activeSweep = if (hasSessionData) {
-                                        (lastQualityScore.coerceIn(5, 100) / 100f) * totalSweep
-                                    } else {
-                                        0f
-                                    }
-                                    if (activeSweep > 0f) {
+                                        // Background Track Arc
                                         drawArc(
-                                            color = activeArcColor,
+                                            color = trackArcColor,
                                             startAngle = startAngle,
-                                            sweepAngle = activeSweep,
+                                            sweepAngle = totalSweep,
                                             useCenter = false,
                                             topLeft = topLeft,
                                             size = Size(arcSize, arcSize),
                                             style = Stroke(width = strokeW, cap = StrokeCap.Round)
                                         )
-                                    }
-                                }
 
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(top = 8.dp)
-                                ) {
-                                    Text(
-                                        text = if (hasSessionData) "Last night quality" else "No sleep tracked yet",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = if (hasSessionData) "$lastQualityScore" else "--",
-                                        fontSize = 48.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (hasSessionData) {
-                                        val snoreMins = latestSession!!.snoreDurationMinutes
-                                        val infoText = if (snoreMins > 0) {
-                                            "$snoreMins min snoring sound • ${latestSession.movementRating}"
+                                        // Active Track Arc
+                                        val activeSweep = if (hasSessionData) {
+                                            (lastQualityScore.coerceIn(5, 100) / 100f) * totalSweep
                                         } else {
-                                            "Peaceful rest • No snoring detected"
+                                            0f
                                         }
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        if (activeSweep > 0f) {
+                                            drawArc(
+                                                color = activeArcColor,
+                                                startAngle = startAngle,
+                                                sweepAngle = activeSweep,
+                                                useCenter = false,
+                                                topLeft = topLeft,
+                                                size = Size(arcSize, arcSize),
+                                                style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                                            )
+                                        }
+                                    }
+
+                                    // Content perfectly centered inside the arc without overlapping
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(horizontal = 24.dp)
+                                    ) {
                                         Text(
-                                            text = infoText,
-                                            fontSize = 12.sp,
+                                            text = if (hasSessionData) "Last night quality" else "No sleep tracked yet",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.Center
                                         )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (hasSessionData) "$lastQualityScore" else "--",
+                                            fontSize = 52.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 56.sp
+                                        )
                                     }
+                                }
+
+                                // Information text placed cleanly below the circular progress bar with proper spacing
+                                if (hasSessionData) {
+                                    val snoreMins = latestSession!!.snoreDurationMinutes
+                                    val infoText = if (snoreMins > 0) {
+                                        "$snoreMins min snoring sound • ${latestSession.movementRating}"
+                                    } else {
+                                        "Peaceful rest • No snoring detected"
+                                    }
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Text(
+                                        text = infoText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(28.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
 
                             // Track My Sleep Action Button
                             Button(
@@ -464,12 +501,12 @@ fun SleepScreen(
             SleepGuidanceScreen(
                 onGotIt = {
                     showGuidance = false
-                    requestStartTracking()
+                    startTrackingSession()
                 },
                 onNeverShowAgain = {
                     prefs.edit().putBoolean("never_show_guidance", true).apply()
                     showGuidance = false
-                    requestStartTracking()
+                    startTrackingSession()
                 }
             )
         }
@@ -541,6 +578,7 @@ fun SleepScreen(
             )
         }
 
+
         // --- 6. Microphone Permission Rationale Dialog ---
         if (showPermissionRationale) {
             AlertDialog(
@@ -571,8 +609,18 @@ fun SleepScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showPermissionRationale = false }) {
-                        Text("Cancel", color = Color(0xFF6B7280))
+                    TextButton(
+                        onClick = {
+                            showPermissionRationale = false
+                            val neverShow = prefs.getBoolean("never_show_guidance", false)
+                            if (neverShow) {
+                                startTrackingSession()
+                            } else {
+                                showGuidance = true
+                            }
+                        }
+                    ) {
+                        Text("Continue without mic", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             )

@@ -2,20 +2,20 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light Warm & Lavender Palette (LUNE design system from UI component tokens)
+// Light Pure White & Crisp Lavender Palette
 object LuneColors {
     val primary = Color(0xFF9A77FF)
     val primaryDeep = Color(0xFF6F46A3)
     val primaryLight = Color(0xFFC9A8F4)
     val primarySoft = Color(0xFFE8D7FF)
 
-    val surface = Color(0xFFFFFDF9)
-    val surfaceSoft = Color(0xFFF6EFE6)
-    val surfaceMuted = Color(0xFFE8DECF)
-    val surfaceLavender = Color(0xFFEFE8FC)
-    val surfacePeach = Color(0xFFFFE8DB)
-    val surfaceSage = Color(0xFFE6EFE6)
-    val surfaceGold = Color(0xFFFFF0D6)
+    val surface = Color(0xFFFFFFFF)
+    val surfaceSoft = Color(0xFFF8FAFC)
+    val surfaceMuted = Color(0xFFF1F5F9)
+    val surfaceLavender = Color(0xFFF5F3FF)
+    val surfacePeach = Color(0xFFFFF1F2)
+    val surfaceSage = Color(0xFFF0FDF4)
+    val surfaceGold = Color(0xFFFEFCE8)
 
     val accentPeach = Color(0xFFFFB598)
     val accentSage = Color(0xFF94BA95)
@@ -26,19 +26,19 @@ object LuneColors {
     val sageDark = Color(0xFF4E7E50)
     val goldDark = Color(0xFFB87F2B)
 
-    val text = Color(0xFF2D2319)
-    val textSoft = Color(0xFF6D5947)
-    val textMuted = Color(0xFF9E8B79)
+    val text = Color(0xFF1E293B)
+    val textSoft = Color(0xFF475569)
+    val textMuted = Color(0xFF94A3B8)
     val white = Color(0xFFFFFFFF)
     val coral = Color(0xFFE25B5B)
 
-    val border = Color(0xFFE6D7C3)
-    val borderLight = Color(0xFFF0E5D6)
+    val border = Color(0xFFE2E8F0)
+    val borderLight = Color(0xFFF1F5F9)
     val borderGlow = Color(0x529A77FF)
 }
 
-// Light Warm Palette (LUNE signature)
-val LuneBackground = Color(0xFFF8F1E7)
+// Light Pure White Palette
+val LuneBackground = Color(0xFFFFFFFF)
 val LuneSurface = LuneColors.surface
 val LuneSurfaceVariant = LuneColors.surfaceSoft
 val LunePrimaryText = LuneColors.text

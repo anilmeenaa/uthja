@@ -170,7 +170,7 @@ fun SmoothWheelTimePicker(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFFFFFDF9))
+            .background(Color.White)
             .border(1.5.dp, LuneColors.borderLight, RoundedCornerShape(24.dp))
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -223,7 +223,7 @@ fun SmoothWheelTimePicker(
                 .fillMaxWidth()
                 .height(totalHeight)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFFF9F4EC).copy(alpha = 0.65f))
+                .background(Color(0xFFF8FAFC))
                 .border(1.dp, LuneColors.border.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
             contentAlignment = Alignment.Center
         ) {
@@ -404,8 +404,8 @@ fun SmoothWheelTimePicker(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFFF9F4EC),
-                                Color(0xFFF9F4EC).copy(alpha = 0.0f)
+                                Color(0xFFF8FAFC),
+                                Color(0xFFF8FAFC).copy(alpha = 0.0f)
                             )
                         )
                     )
@@ -420,8 +420,8 @@ fun SmoothWheelTimePicker(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFFF9F4EC).copy(alpha = 0.0f),
-                                Color(0xFFF9F4EC)
+                                Color(0xFFF8FAFC).copy(alpha = 0.0f),
+                                Color(0xFFF8FAFC)
                             )
                         )
                     )

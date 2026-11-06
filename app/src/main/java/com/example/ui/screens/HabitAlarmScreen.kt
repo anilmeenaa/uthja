@@ -105,7 +105,7 @@ fun HabitAlarmScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F6F8))
+            .background(Color.White)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {

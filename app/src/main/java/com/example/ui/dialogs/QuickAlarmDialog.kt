@@ -69,13 +69,14 @@ import java.util.Locale
 @Composable
 fun QuickAlarmDialog(
     onDismiss: () -> Unit,
-    onSaveQuickAlarm: (minutes: Int, sound: String, volume: Float, vibrate: Boolean) -> Unit
+    onSaveQuickAlarm: (minutes: Int, ringDurationSeconds: Int, sound: String, volume: Float, vibrate: Boolean) -> Unit
 ) {
     val haptics = rememberAppleHaptics()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var addedMinutes by remember { mutableIntStateOf(0) }
-    var soundName by remember { mutableStateOf("Orkney") }
+    var ringDurationSeconds by remember { mutableIntStateOf(5) } // Default 5 sec
+    var soundName by remember { mutableStateOf("Birds") } // Only Birds sound from Nature
     var volume by remember { mutableFloatStateOf(0.42f) }
     var vibrationEnabled by remember { mutableStateOf(true) }
 
@@ -233,7 +234,7 @@ fun QuickAlarmDialog(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Alarm Sound Row
+            // Alarm Sound Row (Locked to Nature Birds per specification)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -249,23 +250,59 @@ fun QuickAlarmDialog(
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        haptics.pulseAppleSelection()
-                        soundName = if (soundName == "Orkney") "Meow Alarm" else "Orkney"
-                    }
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
                 ) {
                     Text(
-                        text = soundName,
+                        text = "🌿 Birds (Nature)",
                         fontSize = 13.5.sp,
-                        color = Color(0xFF4B5563),
-                        fontWeight = FontWeight.Medium
+                        color = Color(0xFF0D9488),
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = Color(0xFF9CA3AF),
-                        modifier = Modifier.size(16.dp)
-                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Ring Duration Row (5 sec or 10 sec, default 5 sec)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ring duration",
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF1F2937)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(5 to "5 sec", 10 to "10 sec").forEach { (sec, label) ->
+                        val isSelected = ringDurationSeconds == sec
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) Color(0xFF1E293B) else Color(0xFFF1F5F9))
+                                .clickable {
+                                    haptics.pulseAppleSelection()
+                                    ringDurationSeconds = sec
+                                }
+                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                .testTag("quick_alarm_ring_duration_${sec}s"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else Color(0xFF64748B)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -336,7 +373,7 @@ fun QuickAlarmDialog(
                 onClick = {
                     haptics.pulseAppleSuccess()
                     val finalMinutes = if (addedMinutes <= 0) 5 else addedMinutes
-                    onSaveQuickAlarm(finalMinutes, soundName, volume, vibrationEnabled)
+                    onSaveQuickAlarm(finalMinutes, ringDurationSeconds, "Birds", volume, vibrationEnabled)
                     onDismiss()
                 },
                 modifier = Modifier

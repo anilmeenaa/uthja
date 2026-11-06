@@ -45,8 +45,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.alarm.rememberAppleHaptics
+import com.example.data.model.AlarmEntity
 import com.example.data.model.AlarmEventEntity
+import com.example.data.model.SleepSessionEntity
 import com.example.data.model.UserProfileEntity
+import com.example.data.model.WeeklySleepPatternCalculator
 import com.example.ui.components.AppText
 import com.example.ui.components.AppTextTone
 import com.example.ui.components.AppTextVariant
@@ -57,18 +60,32 @@ import com.example.ui.components.LuneButtonSize
 import com.example.ui.components.LuneButtonVariant
 import com.example.ui.components.LuneCard
 import com.example.ui.components.LuneSectionHeader
+import com.example.ui.components.SleepDurationRechartsView
 import com.example.ui.components.WaveBackground
 import com.example.ui.theme.LuneColors
 
 @Composable
 fun AnalyticsScreen(
     alarmEvents: List<AlarmEventEntity>,
+    alarms: List<AlarmEntity> = emptyList(),
+    sleepSessions: List<SleepSessionEntity> = emptyList(),
     userProfile: UserProfileEntity?,
+    onOpenFullVisualizer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val haptics = rememberAppleHaptics()
     var isNotified by remember { mutableStateOf(false) }
+
+    val weeklySummary = remember(alarmEvents, alarms, sleepSessions, userProfile) {
+        WeeklySleepPatternCalculator.computeWeeklySummary(
+            alarmEvents = alarmEvents,
+            alarms = alarms,
+            sleepSessions = sleepSessions,
+            userProfile = userProfile,
+            weekOffset = 0
+        )
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "stats_glow")
     val pulseScale by infiniteTransition.animateFloat(
@@ -91,7 +108,7 @@ fun AnalyticsScreen(
             item {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Custom Header with Prominent Coming Soon Badge
+                // Custom Header with Live Recharts Badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -110,12 +127,12 @@ fun AnalyticsScreen(
                         )
                     }
 
-                    // Coming Soon Pill Badge
+                    // Recharts Live Badge
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
-                            .background(Color(0xFFE8F6F1))
-                            .border(1.dp, Color(0xFFC7EDE0), CircleShape)
+                            .background(Color(0xFFF3EFFE))
+                            .border(1.dp, Color(0xFFDDD2FB), CircleShape)
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Row(
@@ -123,13 +140,13 @@ fun AnalyticsScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
+                                imageVector = Icons.Filled.Insights,
                                 contentDescription = null,
-                                tint = Color(0xFF2C9C72),
+                                tint = Color(0xFF785CD8),
                                 modifier = Modifier.size(13.dp)
                             )
                             AppText(
-                                text = "Coming Soon",
+                                text = "Recharts Live",
                                 variant = AppTextVariant.CAPTION,
                                 tone = AppTextTone.ACCENT
                             )
@@ -139,93 +156,48 @@ fun AnalyticsScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
                 AppText(
-                    text = "A quiet, comprehensive view into what improves your mornings.",
+                    text = "Weekly summary of sleep duration patterns based on alarm history.",
                     variant = AppTextVariant.BODY,
                     tone = AppTextTone.MUTED
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Hero Card: Stats Spotlight
+            // Live Recharts Data Visualization Card
             item {
-                LuneCard(
-                    elevated = true,
-                    tonal = CardTone.SAGE,
-                    blobTone = GradientBlobTone.SAGE,
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
+                    SleepDurationRechartsView(
+                        summary = weeklySummary,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Open Full-screen visualizer CTA
+                    LuneButton(
+                        onClick = {
+                            haptics.pulseAppleButtonClick()
+                            onOpenFullVisualizer()
+                        },
+                        variant = LuneButtonVariant.SECONDARY,
+                        size = LuneButtonSize.MD,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Ambient Breathing Insights Icon
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(96.dp)
-                                .scale(pulseScale)
-                                .clip(CircleShape)
-                                .background(LuneColors.surfaceSage)
-                                .border(1.5.dp, Color(0xFFBFE7D7), CircleShape)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Insights,
-                                contentDescription = "Stats icon",
-                                tint = Color(0xFF1E7E59),
-                                modifier = Modifier.size(46.dp)
+                                imageVector = Icons.Filled.Timeline,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        AppText(
-                            text = "Advanced Stats are Coming Soon",
-                            variant = AppTextVariant.TITLE,
-                            tone = AppTextTone.DEFAULT
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        AppText(
-                            text = "We are designing rich analytics to chart your circadian rhythms, anti-snooze consistency, mission speed records, and sleep hygiene trends.",
-                            variant = AppTextVariant.BODY,
-                            tone = AppTextTone.SECONDARY,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Notify Me CTA Button
-                        LuneButton(
-                            onClick = {
-                                haptics.pulseAppleButtonClick()
-                                isNotified = !isNotified
-                                Toast.makeText(
-                                    context,
-                                    if (isNotified) "✨ You'll be notified when Stats & Analytics launch!" else "Notification preference updated.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            variant = if (isNotified) LuneButtonVariant.SECONDARY else LuneButtonVariant.PRIMARY,
-                            size = LuneButtonSize.MD
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isNotified) Icons.Filled.AutoAwesome else Icons.Filled.NotificationsActive,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                AppText(
-                                    text = if (isNotified) "Notifications Enabled" else "Notify Me When Ready",
-                                    variant = AppTextVariant.LABEL,
-                                    tone = if (isNotified) AppTextTone.ACCENT else AppTextTone.INVERSE
-                                )
-                            }
+                            AppText(
+                                text = "View Detailed Pattern Analysis",
+                                variant = AppTextVariant.LABEL,
+                                tone = AppTextTone.ACCENT
+                            )
                         }
                     }
                 }

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Cubee Mascot</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #root {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent !important;
+    }
+
+    .cubee-svg-container {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: center bottom;
+      transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .cubee-svg-container:active {
+      transform: scale(0.94);
+    }
+
+    /* Idle subtle float animation */
+    @keyframes cubeeFloat {
+      0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+      }
+      50% {
+        transform: translateY(-5px) rotate(1.2deg);
+      }
+    }
+
+    /* Laughing joyful bounce animation */
+    @keyframes cubeeLaughBounce {
+      0% {
+        transform: translateY(0px) scale(1, 1) rotate(0deg);
+      }
+      20% {
+        transform: translateY(-9px) scale(0.96, 1.06) rotate(-2deg);
+      }
+      40% {
+        transform: translateY(2px) scale(1.05, 0.94) rotate(2deg);
+      }
+      60% {
+        transform: translateY(-7px) scale(0.97, 1.04) rotate(-1.5deg);
+      }
+      80% {
+        transform: translateY(1px) scale(1.03, 0.96) rotate(1deg);
+      }
+      100% {
+        transform: translateY(0px) scale(1, 1) rotate(0deg);
+      }
+    }
+
+    /* Waking stretch animation */
+    @keyframes cubeeWake {
+      0% {
+        transform: translateY(4px) scale(1.02, 0.92);
+      }
+      40% {
+        transform: translateY(-5px) scale(0.96, 1.06);
+      }
+      70% {
+        transform: translateY(1px) scale(1.01, 0.98);
+      }
+      100% {
+        transform: translateY(0px) scale(1, 1);
+      }
+    }
+
+    .state-waking {
+      animation: cubeeWake 2s ease-in-out forwards;
+    }
+
+    .state-idle {
+      animation: cubeeFloat 3.2s ease-in-out infinite;
+    }
+
+    .state-laughing {
+      animation: cubeeLaughBounce 0.6s ease-in-out infinite;
+    }
+
+    /* Reduced Motion fallback */
+    @media (prefers-reduced-motion: reduce) {
+      .state-waking, .state-idle, .state-laughing {
+        animation: none !important;
+      }
+    }
+
+    .reduced-motion {
+      animation: none !important;
+    }
+  </style>
+  <script src="js/react.production.min.js"></script>
+  <script src="js/react-dom.production.min.js"></script>
+  <script>
+    if (typeof React === 'undefined') {
+      document.write('<script src="../js/react.production.min.js"><\/script>');
+      document.write('<script src="../js/react-dom.production.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    (function () {
+      const { useState, useEffect, useRef } = React;
+
+      // State constants
+      const STATE_WAKING = 'waking';
+      const STATE_IDLE = 'idle';
+      const STATE_LAUGHING = 'laughing';
+
+      function CubeeApp() {
+        const [mascotState, setMascotState] = useState(STATE_WAKING);
+        const [isBlinking, setIsBlinking] = useState(false);
+        const [wakingStep, setWakingStep] = useState(0); // 0: sleeping, 1: yawning/half, 2: fully awake
+        const [reducedMotion, setReducedMotion] = useState(false);
+        const timerRef = useRef(null);
+        const blinkIntervalRef = useRef(null);
+
+        // System accessibility reduced motion check
+        useEffect(() => {
+          try {
+            const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+            if (mediaQuery.matches) {
+              setReducedMotion(true);
+            }
+          } catch (e) {}
+
+          window.setReducedMotion = function (enabled) {
+            setReducedMotion(!!enabled);
+          };
+
+          window.triggerLaugh = function () {
+            handleTap();
+          };
+
+          window.getState = function () {
+            return mascotState;
+          };
+        }, [mascotState]);
+
+        // 1. Initial Waking sequence (2 seconds exact as requested)
+        useEffect(() => {
+          // Step 0: Eyes closed (0 - 600ms)
+          const step1 = setTimeout(() => {
+            setWakingStep(1); // yawning / opening half
+          }, 600);
+
+          // Step 1: Blinking / opening wide (1200ms)
+          const step2 = setTimeout(() => {
+            setWakingStep(2); // eyes sparkle open
+          }, 1300);
+
+          // Step 2: Switch to Idle after 2000ms
+          const wakeTimeout = setTimeout(() => {
+            setMascotState(STATE_IDLE);
+          }, 2000);
+
+          return () => {
+            clearTimeout(step1);
+            clearTimeout(step2);
+            clearTimeout(wakeTimeout);
+          };
+        }, []);
+
+        // 2. Natural eye blinks during Idle
+        useEffect(() => {
+          if (mascotState !== STATE_IDLE) {
+            if (blinkIntervalRef.current) clearInterval(blinkIntervalRef.current);
+            return;
+          }
+
+          blinkIntervalRef.current = setInterval(() => {
+            setIsBlinking(true);
+            setTimeout(() => {
+              setIsBlinking(false);
+            }, 180);
+          }, 3600);
+
+          return () => {
+            if (blinkIntervalRef.current) clearInterval(blinkIntervalRef.current);
+          };
+        }, [mascotState]);
+
+        // 3. Laughing timeout back to Idle (1800ms)
+        useEffect(() => {
+          if (mascotState === STATE_LAUGHING) {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => {
+              setMascotState(STATE_IDLE);
+            }, 1800);
+          }
+          return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+          };
+        }, [mascotState]);
+
+        const handleTap = () => {
+          // Notify Android native bridge for haptic feedback
+          try {
+            if (window.CubeeBridge && window.CubeeBridge.onCubeeTapped) {
+              window.CubeeBridge.onCubeeTapped();
+            }
+          } catch (e) {}
+
+          // Switch to laughing state
+          setMascotState(STATE_LAUGHING);
+        };
+
+        const containerClasses = [
+          'cubee-svg-container',
+          reducedMotion ? 'reduced-motion' : ('state-' + mascotState)
+        ].join(' ');
+
+        return React.createElement(
+          'div',
+          {
+            className: containerClasses,
+            onClick: handleTap,
+            role: 'button',
+            'aria-label': 'Cubee animated mascot'
+          },
+          renderCubeeSvg(mascotState, wakingStep, isBlinking)
+        );
+      }
+
+      function renderCubeeSvg(mascotState, wakingStep, isBlinking) {
+        const isLaughing = mascotState === STATE_LAUGHING;
+        const isWaking = mascotState === STATE_WAKING;
+
+        return React.createElement(
+          'svg',
+          {
+            viewBox: '0 0 160 160',
+            width: '100%',
+            height: '100%',
+            fill: 'none',
+            xmlns: 'http://www.w3.org/2000/svg'
+          },
+          [
+            // Definitions for gradients & soft drop-shadow
+            React.createElement('defs', { key: 'defs' }, [
+              // Body main gradient
+              React.createElement('linearGradient', {
+                key: 'cubeGrad',
+                id: 'cubeGrad',
+                x1: '20',
+                y1: '16',
+                x2: '140',
+                y2: '144',
+                gradientUnits: 'userSpaceOnUse'
+              }, [
+                React.createElement('stop', { key: 's1', offset: '0%', stopColor: '#7C3AED' }),
+                React.createElement('stop', { key: 's2', offset: '45%', stopColor: '#6366F1' }),
+                React.createElement('stop', { key: 's3', offset: '100%', stopColor: '#4F46E5' })
+              ]),
+              // Cube top highlight
+              React.createElement('linearGradient', {
+                key: 'topHighlight',
+                id: 'topHighlight',
+                x1: '80',
+                y1: '22',
+                x2: '80',
+                y2: '58',
+                gradientUnits: 'userSpaceOnUse'
+              }, [
+                React.createElement('stop', { key: 'th1', offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0.45' }),
+                React.createElement('stop', { key: 'th2', offset: '100%', stopColor: '#FFFFFF', stopOpacity: '0' })
+              ]),
+              // Cheeks glow gradient
+              React.createElement('radialGradient', {
+                key: 'blushGlow',
+                id: 'blushGlow',
+                cx: '50%',
+                cy: '50%',
+                r: '50%'
+              }, [
+                React.createElement('stop', { key: 'b1', offset: '0%', stopColor: '#FB7185', stopOpacity: isLaughing ? '0.85' : '0.6' }),
+                React.createElement('stop', { key: 'b2', offset: '100%', stopColor: '#FB7185', stopOpacity: '0' })
+              ])
+            ]),
+
+            // Subtle base shadow
+            React.createElement('ellipse', {
+              key: 'ground-shadow',
+              cx: '80',
+              cy: '148',
+              rx: isLaughing ? '38' : '44',
+              ry: '7',
+              fill: 'rgba(30, 27, 75, 0.16)'
+            }),
+
+            // Cute little ears / antennae on top
+            // Left ear
+            React.createElement('rect', {
+              key: 'ear-left',
+              x: '42',
+              y: '14',
+              width: '18',
+              height: '22',
+              rx: '9',
+              fill: '#4F46E5',
+              transform: isLaughing ? 'rotate(-10 51 25)' : 'rotate(-4 51 25)'
+            }),
+            React.createElement('rect', {
+              key: 'ear-left-inner',
+              x: '46',
+              y: '17',
+              width: '10',
+              height: '14',
+              rx: '5',
+              fill: '#A5B4FC'
+            }),
+
+            // Right ear
+            React.createElement('rect', {
+              key: 'ear-right',
+              x: '100',
+              y: '14',
+              width: '18',
+              height: '22',
+              rx: '9',
+              fill: '#4F46E5',
+              transform: isLaughing ? 'rotate(10 109 25)' : 'rotate(4 109 25)'
+            }),
+            React.createElement('rect', {
+              key: 'ear-right-inner',
+              x: '104',
+              y: '17',
+              width: '10',
+              height: '14',
+              rx: '5',
+              fill: '#A5B4FC'
+            }),
+
+            // Main Cute Rounded Cube Body
+            React.createElement('rect', {
+              key: 'cube-body',
+              x: '24',
+              y: '26',
+              width: '112',
+              height: '112',
+              rx: '32',
+              fill: 'url(#cubeGrad)'
+            }),
+
+            // Top Curved Highlight (Soft 3D reflection)
+            React.createElement('path', {
+              key: 'top-specular',
+              d: 'M 40 32 C 55 28, 105 28, 120 32 C 128 35, 130 46, 122 52 C 105 45, 55 45, 38 52 C 30 46, 32 35, 40 32 Z',
+              fill: 'url(#topHighlight)'
+            }),
+
+            // Inner Face Card (Soft Creamy Contrast Plate)
+            React.createElement('rect', {
+              key: 'face-plate',
+              x: '34',
+              y: '42',
+              width: '92',
+              height: '84',
+              rx: '24',
+              fill: '#FFFFFF',
+              opacity: '0.96'
+            }),
+
+            // Rosy Blushing Cheeks
+            React.createElement('ellipse', {
+              key: 'cheek-left',
+              cx: '48',
+              cy: '90',
+              rx: isLaughing ? '11' : '8.5',
+              ry: isLaughing ? '8.5' : '6',
+              fill: 'url(#blushGlow)'
+            }),
+            React.createElement('ellipse', {
+              key: 'cheek-right',
+              cx: '112',
+              cy: '90',
+              rx: isLaughing ? '11' : '8.5',
+              ry: isLaughing ? '8.5' : '6',
+              fill: 'url(#blushGlow)'
+            }),
+
+            // Eyes rendering
+            renderEyes(mascotState, wakingStep, isBlinking, isLaughing),
+
+            // Mouth rendering
+            renderMouth(mascotState, wakingStep, isLaughing)
+          ]
+        );
+      }
+
+      function renderEyes(mascotState, wakingStep, isBlinking, isLaughing) {
+        const isWaking = mascotState === STATE_WAKING;
+
+        // 1. Laughing Eyes: Joyful squinting crescents (^_^)
+        if (isLaughing) {
+          return React.createElement('g', { key: 'eyes-laugh' }, [
+            // Left crescent
+            React.createElement('path', {
+              key: 'eye-l-laugh',
+              d: 'M 50 78 C 55 70, 65 70, 70 78',
+              stroke: '#1E1B4B',
+              strokeWidth: '4.5',
+              strokeLinecap: 'round'
+            }),
+            // Right crescent
+            React.createElement('path', {
+              key: 'eye-r-laugh',
+              d: 'M 90 78 C 95 70, 105 70, 110 78',
+              stroke: '#1E1B4B',
+              strokeWidth: '4.5',
+              strokeLinecap: 'round'
+            })
+          ]);
+        }
+
+        // 2. Waking sequence eyes
+        if (isWaking) {
+          if (wakingStep === 0) {
+            // Sleeping closed eye curves (~ ~)
+            return React.createElement('g', { key: 'eyes-sleep' }, [
+              React.createElement('path', {
+                key: 'eye-l-sleep',
+                d: 'M 51 76 C 56 80, 64 80, 69 76',
+                stroke: '#1E1B4B',
+                strokeWidth: '4',
+                strokeLinecap: 'round'
+              }),
+              React.createElement('path', {
+                key: 'eye-r-sleep',
+                d: 'M 91 76 C 96 80, 104 80, 109 76',
+                stroke: '#1E1B4B',
+                strokeWidth: '4',
+                strokeLinecap: 'round'
+              })
+            ]);
+          } else if (wakingStep === 1) {
+            // Half open drowsy eyes
+            return React.createElement('g', { key: 'eyes-drowsy' }, [
+              React.createElement('ellipse', {
+                key: 'eye-l-drowsy',
+                cx: '60',
+                cy: '75',
+                rx: '6',
+                ry: '3.5',
+                fill: '#1E1B4B'
+              }),
+              React.createElement('ellipse', {
+                key: 'eye-r-drowsy',
+                cx: '100',
+                cy: '75',
+                rx: '6',
+                ry: '3.5',
+                fill: '#1E1B4B'
+              })
+            ]);
+          }
+          // If wakingStep === 2, fall through to normal wide open eyes!
+        }
+
+        // 3. Regular Blinking
+        if (isBlinking) {
+          return React.createElement('g', { key: 'eyes-blink' }, [
+            React.createElement('path', {
+              key: 'eye-l-blink',
+              d: 'M 52 75 L 68 75',
+              stroke: '#1E1B4B',
+              strokeWidth: '4',
+              strokeLinecap: 'round'
+            }),
+            React.createElement('path', {
+              key: 'eye-r-blink',
+              d: 'M 92 75 L 108 75',
+              stroke: '#1E1B4B',
+              strokeWidth: '4',
+              strokeLinecap: 'round'
+            })
+          ]);
+        }
+
+        // 4. Default Wide, Expressive Kawaii Eyes with Sparkle Highlights
+        return React.createElement('g', { key: 'eyes-normal' }, [
+          // Left Pupil
+          React.createElement('ellipse', {
+            key: 'eye-l-pupil',
+            cx: '60',
+            cy: '74',
+            rx: '7.5',
+            ry: '9.5',
+            fill: '#1E1B4B'
+          }),
+          // Left Primary Catchlight
+          React.createElement('circle', {
+            key: 'eye-l-sparkle-1',
+            cx: '57.5',
+            cy: '71',
+            r: '3.2',
+            fill: '#FFFFFF'
+          }),
+          // Left Secondary Sparkle
+          React.createElement('circle', {
+            key: 'eye-l-sparkle-2',
+            cx: '63',
+            cy: '77.5',
+            r: '1.4',
+            fill: '#FFFFFF'
+          }),
+
+          // Right Pupil
+          React.createElement('ellipse', {
+            key: 'eye-r-pupil',
+            cx: '100',
+            cy: '74',
+            rx: '7.5',
+            ry: '9.5',
+            fill: '#1E1B4B'
+          }),
+          // Right Primary Catchlight
+          React.createElement('circle', {
+            key: 'eye-r-sparkle-1',
+            cx: '97.5',
+            cy: '71',
+            r: '3.2',
+            fill: '#FFFFFF'
+          }),
+          // Right Secondary Sparkle
+          React.createElement('circle', {
+            key: 'eye-r-sparkle-2',
+            cx: '103',
+            cy: '77.5',
+            r: '1.4',
+            fill: '#FFFFFF'
+          })
+        ]);
+      }
+
+      function renderMouth(mascotState, wakingStep, isLaughing) {
+        // 1. Laughing Mouth (Open joyous grin with pink tongue)
+        if (isLaughing) {
+          return React.createElement('g', { key: 'mouth-laugh' }, [
+            // Open mouth cavity
+            React.createElement('path', {
+              key: 'mouth-cavity',
+              d: 'M 70 88 Q 80 88 90 88 Q 90 102 80 102 Q 70 102 70 88 Z',
+              fill: '#9F1239'
+            }),
+            // Cute tongue
+            React.createElement('ellipse', {
+              key: 'mouth-tongue',
+              cx: '80',
+              cy: '98',
+              rx: '6.5',
+              ry: '4',
+              fill: '#FDA4AF'
+            }),
+            // Upper lip smile arc
+            React.createElement('path', {
+              key: 'mouth-upper-lip',
+              d: 'M 69 88 Q 80 88 91 88',
+              stroke: '#1E1B4B',
+              strokeWidth: '2.5',
+              strokeLinecap: 'round'
+            })
+          ]);
+        }
+
+        // 2. Waking Yawn
+        if (mascotState === STATE_WAKING && wakingStep === 1) {
+          return React.createElement('ellipse', {
+            key: 'mouth-yawn',
+            cx: '80',
+            cy: '89',
+            rx: '4.5',
+            ry: '6.5',
+            fill: '#BE123C'
+          });
+        }
+
+        // 3. Calm, Sweet Kawaii Smile (Idle & Rest)
+        return React.createElement('path', {
+          key: 'mouth-smile',
+          d: 'M 73 88 Q 80 94 87 88',
+          stroke: '#1E1B4B',
+          strokeWidth: '3.5',
+          strokeLinecap: 'round',
+          fill: 'none'
+        });
+      }
+
+      // Mount into DOM
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        if (typeof ReactDOM.createRoot === 'function') {
+          ReactDOM.createRoot(rootElement).render(React.createElement(CubeeApp));
+        } else {
+          ReactDOM.render(React.createElement(CubeeApp), rootElement);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

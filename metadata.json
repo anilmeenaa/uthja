@@ -1,6 +1,8 @@
 {
-  "name": "LUNE",
+  "name": "Uthja",
   "description": "Smart Gen Z alarm app with anti-snooze challenges, shake and math dismiss, sleep tracking, and intentional wake-up routines.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

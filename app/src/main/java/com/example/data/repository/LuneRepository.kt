@@ -119,8 +119,19 @@ class LuneRepository(
         taskDao.setTaskCompleted(id, isCompleted)
     }
 
+    suspend fun setTaskCompletedWithDate(id: Long, isCompleted: Boolean, completedDate: String?) {
+        taskDao.setTaskCompletedWithDate(id, isCompleted, completedDate)
+    }
+
     suspend fun resetAllTasks() {
         taskDao.resetAllTasks()
+    }
+
+    suspend fun updateTasksOrder(reorderedTasks: List<TaskEntity>) {
+        val updated = reorderedTasks.mapIndexed { index, task ->
+            task.copy(orderIndex = index)
+        }
+        taskDao.insertTasks(updated)
     }
 
     suspend fun getTaskCount(): Int = taskDao.getTaskCount()

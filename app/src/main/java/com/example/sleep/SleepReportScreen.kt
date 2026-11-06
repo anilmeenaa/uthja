@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.WbSunny
@@ -97,6 +98,7 @@ fun SleepReportScreen(
     snoreEvents: List<SnoreEventEntity> = emptyList(),
     onBack: () -> Unit,
     onSetHabitAlarm: () -> Unit = {},
+    onOpenVisualizer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     BackHandler(onBack = onBack)
@@ -134,7 +136,7 @@ fun SleepReportScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // --- Top Bar: Back Button & "Report" Title ---
+        // --- Top Bar: Back Button, "Report" Title & Visualizer Button ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -162,6 +164,7 @@ fun SleepReportScreen(
                 color = Color(0xFF1E232A),
                 modifier = Modifier.align(Alignment.Center)
             )
+
         }
 
         // --- Tab Selection Pills ---

@@ -5,6 +5,7 @@ import com.example.data.model.DismissType
 import com.example.data.model.SleepSessionEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.WakeMode
+import com.example.data.model.WallpaperCatalog
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -31,7 +32,7 @@ data class SupabaseAlarmDto(
     @SerialName("sound")
     val sound: String = "Good Morningggg",
     @SerialName("wallpaper")
-    val wallpaper: String = "wp_aesthetic_1",
+    val wallpaper: String = WallpaperCatalog.DEFAULT_WALLPAPER_ID,
     @SerialName("strict_no_snooze")
     val strictNoSnooze: Boolean = true,
     @SerialName("created_at")

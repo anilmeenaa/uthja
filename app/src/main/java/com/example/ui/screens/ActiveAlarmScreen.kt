@@ -40,8 +40,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -106,18 +109,35 @@ fun ActiveAlarmScreen(
         }
     }
 
+    var hasCompleted by remember { mutableStateOf(false) }
+
+    fun triggerCompletion() {
+        if (!hasCompleted) {
+            hasCompleted = true
+            haptics.pulseAppleSuccess()
+            onDismissConquered()
+        }
+    }
+
     BackHandler {
         if (isLockedMission) {
             haptics.pulseAppleButtonClick()
             onAttemptExitBlocked?.invoke()
         } else {
-            onDismissConquered()
+            triggerCompletion()
         }
     }
 
     val targetCount = state.shakeTargetCount.coerceAtLeast(1)
     val currentCount = state.shakeCurrentCount.coerceIn(0, targetCount)
     val shakesLeft = (targetCount - currentCount).coerceAtLeast(0)
+
+    // Trigger completion safely when shake target count is conquered
+    LaunchedEffect(currentCount, targetCount) {
+        if (currentCount >= targetCount && !hasCompleted) {
+            triggerCompletion()
+        }
+    }
 
     // Calculate progress fraction for the rising red-orange gradient
     val progressFraction = (currentCount.toFloat() / targetCount.toFloat()).coerceIn(0f, 1f)
@@ -196,7 +216,7 @@ fun ActiveAlarmScreen(
                             if (isLockedMission) {
                                 onAttemptExitBlocked?.invoke()
                             } else {
-                                onDismissConquered()
+                                triggerCompletion()
                             }
                         },
                         modifier = Modifier.size(44.dp)
@@ -226,19 +246,39 @@ fun ActiveAlarmScreen(
                         }
                     }
 
-                    IconButton(
-                        onClick = {
-                            haptics.pulseAppleSelection()
-                            onToggleMute?.invoke()
-                        },
-                        modifier = Modifier.size(44.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF0284C7).copy(alpha = 0.25f))
+                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "🎧 Gentle 30%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFBAE6FD)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                haptics.pulseAppleSelection()
+                                onToggleMute?.invoke()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (isMuted) "Unmute" else "Mute",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -324,7 +364,7 @@ fun ActiveAlarmScreen(
                         if (isLockedMission) {
                             onAttemptExitBlocked?.invoke()
                         } else {
-                            onDismissConquered()
+                            triggerCompletion()
                         }
                     }
                     .testTag("exit_preview_button"),

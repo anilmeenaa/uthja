@@ -205,7 +205,11 @@ object AntiCheatProtectionManager {
         }
 
         try {
-            appContext.registerReceiver(powerOffReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                appContext.registerReceiver(powerOffReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                appContext.registerReceiver(powerOffReceiver, filter)
+            }
             receiverRegistered = true
             Log.d(TAG, "Power-off interceptor receiver successfully registered")
         } catch (e: Exception) {

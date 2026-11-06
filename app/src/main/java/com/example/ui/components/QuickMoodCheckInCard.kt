@@ -67,8 +67,8 @@ fun QuickMoodCheckInCard(
                 ambientColor = Color(0x0A8E69AA)
             )
             .clip(RoundedCornerShape(26.dp))
-            .background(Color(0xFFFCFAF7))
-            .border(1.dp, Color(0xFFF3ECE4), RoundedCornerShape(26.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(26.dp))
             .aspectRatio(900f / 1060f)
             .padding(16.dp)
     ) {

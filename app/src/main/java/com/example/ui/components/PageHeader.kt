@@ -24,7 +24,7 @@ import com.example.ui.theme.LuneColors
 fun PageHeader(
     title: String,
     modifier: Modifier = Modifier,
-    eyebrow: String = "LUNE",
+    eyebrow: String = "Uthja",
     subtitle: String? = null,
     showNotification: Boolean = false,
     onNotificationClick: (() -> Unit)? = null

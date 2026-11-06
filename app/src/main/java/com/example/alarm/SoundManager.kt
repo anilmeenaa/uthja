@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.MediaPlayer
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -29,6 +30,50 @@ class SoundManager(private val context: Context) {
     private var currentPlayingVibe: String? = null
     private var previewMediaPlayer: MediaPlayer? = null
     private var alarmMediaPlayer: MediaPlayer? = null
+    private var activeFallbackRingtone: Ringtone? = null
+    private var activeAudioTrack: AudioTrack? = null
+
+    private var currentVolume: Float = 0.10f
+    private var isMissionActive: Boolean = false
+    private var volumeFadeJob: Job? = null
+
+    val currentEffectiveVolume: Float
+        get() = if (isMissionActive) {
+            currentVolume.coerceAtMost(0.28f)
+        } else {
+            currentVolume
+        }
+
+    fun setMissionActive(active: Boolean) {
+        isMissionActive = active
+        applyCurrentVolume()
+    }
+
+    fun setVolume(vol: Float) {
+        currentVolume = vol.coerceIn(0.05f, 1.0f)
+        applyCurrentVolume()
+    }
+
+    private fun applyCurrentVolume() {
+        val vol = currentEffectiveVolume
+        try {
+            alarmMediaPlayer?.setVolume(vol, vol)
+        } catch (e: Exception) {
+            // Ignore
+        }
+        try {
+            activeAudioTrack?.setVolume(vol)
+        } catch (e: Exception) {
+            // Ignore
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                activeFallbackRingtone?.volume = vol
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+    }
 
     private var textToSpeech: TextToSpeech? = null
     private var isTtsReady = false
@@ -237,10 +282,40 @@ class SoundManager(private val context: Context) {
         playAlarmToneWithSound(null, mode, scope)
     }
 
-    fun playAlarmToneWithSound(soundName: String?, mode: WakeMode, scope: CoroutineScope) {
+    fun playAlarmToneWithSound(
+        soundName: String?,
+        mode: WakeMode,
+        scope: CoroutineScope,
+        gradualVolume: Boolean = true,
+        fadeDurationSeconds: Int = 20
+    ) {
         stopAlarmTone()
         stopVibePreview()
         isPlaying = true
+
+        val targetVolume = when (mode) {
+            WakeMode.GENTLE -> 0.75f
+            WakeMode.FOCUS -> 0.90f
+            WakeMode.BEAST -> 1.00f
+        }
+
+        if (gradualVolume) {
+            currentVolume = 0.10f
+            val steps = (fadeDurationSeconds * 2).coerceAtLeast(10)
+            val stepIntervalMs = (fadeDurationSeconds * 1000L / steps).coerceAtLeast(350L)
+            val volumeIncrement = (targetVolume - 0.10f) / steps
+
+            volumeFadeJob?.cancel()
+            volumeFadeJob = scope.launch(Dispatchers.Default) {
+                while (isActive && isPlaying && currentVolume < targetVolume) {
+                    delay(stepIntervalMs)
+                    currentVolume = (currentVolume + volumeIncrement).coerceAtMost(targetVolume)
+                    applyCurrentVolume()
+                }
+            }
+        } else {
+            currentVolume = targetVolume
+        }
 
         val ringtone = soundName?.let { RingtoneCatalog.findByNameOrId(it) }
 
@@ -256,6 +331,8 @@ class SoundManager(private val context: Context) {
                                 .build()
                         )
                         isLooping = true
+                        val vol = currentEffectiveVolume
+                        setVolume(vol, vol)
                         start()
                     }
 
@@ -316,6 +393,8 @@ class SoundManager(private val context: Context) {
                 return@launch
             }
 
+            activeAudioTrack = audioTrack
+
             try {
                 audioTrack.play()
             } catch (e: Exception) {
@@ -323,19 +402,26 @@ class SoundManager(private val context: Context) {
                 return@launch
             }
 
-            val frequencies = when (mode) {
-                WakeMode.GENTLE -> listOf(523.25, 659.25, 783.99, 1046.50)
-                WakeMode.FOCUS -> listOf(587.33, 880.00, 587.33, 1174.66)
-                WakeMode.BEAST -> listOf(880.00, 1760.00, 987.77, 1975.53)
+            val isBirdsSound = soundName?.equals("Birds", ignoreCase = true) == true ||
+                    soundName?.contains("bird", ignoreCase = true) == true
+
+            val frequencies = if (isBirdsSound) {
+                listOf(1760.00, 2093.00, 2349.32, 2637.02, 2093.00, 2637.02)
+            } else {
+                when (mode) {
+                    WakeMode.GENTLE -> listOf(523.25, 659.25, 783.99, 1046.50)
+                    WakeMode.FOCUS -> listOf(587.33, 880.00, 587.33, 1174.66)
+                    WakeMode.BEAST -> listOf(880.00, 1760.00, 987.77, 1975.53)
+                }
             }
 
-            val noteDurationSeconds = when (mode) {
+            val noteDurationSeconds = if (isBirdsSound) 0.12 else when (mode) {
                 WakeMode.GENTLE -> 0.35
                 WakeMode.FOCUS -> 0.22
                 WakeMode.BEAST -> 0.12
             }
 
-            val pauseBetweenSequences = when (mode) {
+            val pauseBetweenSequences = if (isBirdsSound) 280L else when (mode) {
                 WakeMode.GENTLE -> 800L
                 WakeMode.FOCUS -> 400L
                 WakeMode.BEAST -> 100L
@@ -355,11 +441,24 @@ class SoundManager(private val context: Context) {
                             (numSamples - i) / (numSamples * 0.2)
                         } else 1.0
 
-                        val sampleValue = (sin(2.0 * Math.PI * freq * t) * envelope * 0.7 * Short.MAX_VALUE).toInt()
+                        val vol = currentEffectiveVolume
+                        val wave = if (isBirdsSound) {
+                            sin(2.0 * Math.PI * freq * t) + 0.35 * sin(4.0 * Math.PI * freq * t)
+                        } else {
+                            sin(2.0 * Math.PI * freq * t)
+                        }
+                        val sampleValue = (wave * envelope * 0.7 * vol * Short.MAX_VALUE).toInt()
                         buffer[i] = sampleValue.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                     }
-                    audioTrack.write(buffer, 0, buffer.size)
+                    try {
+                        if (isPlaying && isActive) {
+                            audioTrack.write(buffer, 0, buffer.size)
+                        }
+                    } catch (_: Exception) {
+                        break
+                    }
                 }
+                if (!isPlaying || !isActive) break
                 delay(pauseBetweenSequences)
             }
 
@@ -368,33 +467,124 @@ class SoundManager(private val context: Context) {
                 audioTrack.release()
             } catch (e: Exception) {
                 // Ignore cleanup errors
+            } finally {
+                if (activeAudioTrack == audioTrack) {
+                    activeAudioTrack = null
+                }
             }
         }
     }
 
     private fun playSystemFallback() {
         try {
+            activeFallbackRingtone?.stop()
             val alert = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val ringtone = RingtoneManager.getRingtone(context, alert)
+            activeFallbackRingtone = ringtone
             ringtone?.play()
         } catch (e: Exception) {
             Log.e("SoundManager", "Fallback ringtone failed", e)
         }
     }
 
+    /**
+     * Plays a short, pleasant ascending victory chime when a wake-up mission is conquered.
+     */
+    fun playSuccessChime(scope: CoroutineScope) {
+        scope.launch(Dispatchers.Default) {
+            val sampleRate = 44100
+            val frequencies = doubleArrayOf(1046.50, 1318.51, 1567.98) // C6, E6, G6
+            val noteDurationSeconds = 0.12
+            val totalSamples = (sampleRate * noteDurationSeconds * frequencies.size).toInt()
+            val buffer = ShortArray(totalSamples)
+
+            var offset = 0
+            val noteSamples = (sampleRate * noteDurationSeconds).toInt()
+            for (freq in frequencies) {
+                for (i in 0 until noteSamples) {
+                    val t = i.toDouble() / sampleRate
+                    val envelope = Math.exp(-4.0 * (i.toDouble() / noteSamples))
+                    val wave = sin(2.0 * Math.PI * freq * t) + 0.25 * sin(4.0 * Math.PI * freq * t)
+                    val sample = (wave * envelope * 0.45 * Short.MAX_VALUE).toInt()
+                    if (offset + i < totalSamples) {
+                        buffer[offset + i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    }
+                }
+                offset += noteSamples
+            }
+
+            try {
+                val chimeTrack = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(buffer.size * 2)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+
+                chimeTrack.write(buffer, 0, buffer.size)
+                chimeTrack.play()
+                delay((frequencies.size * noteDurationSeconds * 1000).toLong() + 100L)
+                chimeTrack.stop()
+                chimeTrack.release()
+            } catch (e: Exception) {
+                Log.e("SoundManager", "Error playing victory chime", e)
+            }
+        }
+    }
+
     fun stopAlarmTone() {
         isPlaying = false
+        volumeFadeJob?.cancel()
+        volumeFadeJob = null
+        isMissionActive = false
         soundJob?.cancel()
         soundJob = null
 
         try {
-            alarmMediaPlayer?.stop()
-            alarmMediaPlayer?.release()
+            activeFallbackRingtone?.stop()
         } catch (e: Exception) {
             // Ignore
+        } finally {
+            activeFallbackRingtone = null
         }
-        alarmMediaPlayer = null
+
+        try {
+            alarmMediaPlayer?.let { player ->
+                try { player.pause() } catch (_: Exception) {}
+                try { player.stop() } catch (_: Exception) {}
+                try { player.reset() } catch (_: Exception) {}
+                try { player.release() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            // Ignore
+        } finally {
+            alarmMediaPlayer = null
+        }
+
+        try {
+            activeAudioTrack?.let { track ->
+                try { track.pause() } catch (_: Exception) {}
+                try { track.flush() } catch (_: Exception) {}
+                try { track.stop() } catch (_: Exception) {}
+                try { track.release() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            // Ignore
+        } finally {
+            activeAudioTrack = null
+        }
 
         try {
             textToSpeech?.stop()

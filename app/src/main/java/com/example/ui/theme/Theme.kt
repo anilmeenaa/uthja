@@ -15,7 +15,7 @@ import androidx.core.view.WindowCompat
 
 enum class ThemeMode(val title: String, val description: String) {
     SYSTEM("System default", "Follows device dark/light setting"),
-    LIGHT("Light mode", "Warm cream & soothing pastel aesthetic"),
+    LIGHT("Light mode", "Pure crisp white & modern aesthetic"),
     DARK("Dark mode", "Deep midnight palette, gentle on night eyes")
 }
 

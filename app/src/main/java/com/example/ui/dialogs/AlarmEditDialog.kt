@@ -1,6 +1,12 @@
 package com.example.ui.dialogs
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,12 +72,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import com.example.alarm.AlarmScheduler
 import com.example.alarm.SoundManager
 import com.example.alarm.rememberAppleHaptics
@@ -160,15 +169,24 @@ fun AlarmEditScreen(
         mutableStateOf(set)
     }
 
-    var selectedMissionType by remember(initialAlarm) {
-        mutableStateOf(initialAlarm?.dismissType ?: DismissType.MATH)
+    var selectedMissions by remember(initialAlarm) {
+        mutableStateOf(initialAlarm?.getMissions() ?: listOf(DismissType.MATH))
     }
+    val selectedMissionType = selectedMissions.firstOrNull() ?: DismissType.OFF
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val soundManager = remember { SoundManager(context) }
     var isRingtonePickerOpen by remember { mutableStateOf(false) }
     var isMissionPickerOpen by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(context, "Camera permission granted! Barcode mission is ready.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -183,7 +201,12 @@ fun AlarmEditScreen(
     var volume by remember { mutableFloatStateOf(0.85f) }
     var vibrationEnabled by remember { mutableStateOf(true) }
 
-    var gentleWakeUpSeconds by remember { mutableIntStateOf(30) }
+    var gentleWakeUpSeconds by remember(initialAlarm) {
+        mutableIntStateOf(if (initialAlarm?.gradualVolume != false) 25 else 0)
+    }
+    var gentleMissionVolumeEnabled by remember(initialAlarm) {
+        mutableStateOf(initialAlarm?.gentleMissionVolume != false)
+    }
     var timeReminderEnabled by remember { mutableStateOf(false) }
     var weatherReminderEnabled by remember { mutableStateOf(false) }
     var labelReminderEnabled by remember { mutableStateOf(false) }
@@ -205,13 +228,8 @@ fun AlarmEditScreen(
     val nextTriggerMs = remember(hour, minute, repeatDaysFormatted) {
         AlarmScheduler.calculateNextTriggerTime(hour, minute, repeatDaysFormatted)
     }
-    val diffMs = (nextTriggerMs - System.currentTimeMillis()).coerceAtLeast(0L)
-    val diffHours = diffMs / (1000 * 60 * 60)
-    val diffMins = (diffMs / (1000 * 60)) % 60
-    val countdownText = if (diffHours > 0) {
-        "Ring in $diffHours hr. $diffMins min"
-    } else {
-        "Ring in $diffMins min"
+    val countdownText = remember(nextTriggerMs) {
+        AlarmScheduler.formatRemainingTime(nextTriggerMs)
     }
 
     // Time wheel values
@@ -489,20 +507,22 @@ fun AlarmEditScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(if (selectedMissionType != DismissType.OFF) Color(0xFFECE0FD) else Color(0xFFF1F5F9))
+                                        .background(if (selectedMissions.isNotEmpty() && !selectedMissions.contains(DismissType.OFF)) Color(0xFFECE0FD) else Color(0xFFF1F5F9))
                                         .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (selectedMissionType != DismissType.OFF) selectedMissionType.title.take(14) else "None",
+                                        text = if (selectedMissions.isNotEmpty() && !selectedMissions.contains(DismissType.OFF)) {
+                                            if (selectedMissions.size == 1) selectedMissions[0].title.take(14) else "${selectedMissions.size} Active"
+                                        } else "No Mission",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (selectedMissionType != DismissType.OFF) Color(0xFF7C3AED) else Color(0xFF94A3B8)
+                                        color = if (selectedMissions.isNotEmpty() && !selectedMissions.contains(DismissType.OFF)) Color(0xFF7C3AED) else Color(0xFF64748B)
                                     )
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = if (selectedMissionType != DismissType.OFF) "1/5" else "0/5",
+                                    text = if (selectedMissions.contains(DismissType.OFF)) "0/5" else "${selectedMissions.size}/5",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Color(0xFF94A3B8)
@@ -523,230 +543,233 @@ fun AlarmEditScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Slot 1: Active Mission or Add
-                            if (selectedMissionType != DismissType.OFF) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(72.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(
-                                            when (selectedMissionType) {
-                                                DismissType.SHAKE -> Color(0xFFFFECE8)
-                                                DismissType.MATH -> Color(0xFFECE0FD)
-                                                DismissType.COLOR_TILES -> Color(0xFFE3F5EC)
-                                                DismissType.TYPING -> Color(0xFFFDECE8)
-                                                else -> Color(0xFFDCF2FA)
-                                            }
-                                        )
-                                        .border(
-                                            1.dp,
-                                            when (selectedMissionType) {
-                                                DismissType.SHAKE -> Color(0xFFFF5722)
-                                                DismissType.MATH -> Color(0xFF8B64DC)
-                                                DismissType.COLOR_TILES -> Color(0xFF0D9488)
-                                                DismissType.TYPING -> Color(0xFFF74E76)
-                                                else -> Color(0xFFBAE6FD)
-                                            },
-                                            RoundedCornerShape(16.dp)
-                                        )
-                                        .clickable {
-                                            haptics.pulseAppleSelection()
-                                            isMissionPickerOpen = true
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // Delete badge
+                            for (slotIdx in 0..4) {
+                                if (slotIdx < selectedMissions.size) {
+                                    val mission = selectedMissions[slotIdx]
                                     Box(
                                         modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(3.dp)
-                                            .size(18.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFF1F5F9))
+                                            .weight(1f)
+                                            .height(72.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(
+                                                when (mission) {
+                                                    DismissType.SHAKE -> Color(0xFFFFECE8)
+                                                    DismissType.MATH -> Color(0xFFE8F5E9)
+                                                    DismissType.STEP -> Color(0xFFFDF3F0)
+                                                    DismissType.QR_CODE -> Color(0xFFF4EEFE)
+                                                    DismissType.TYPING -> Color(0xFFF3EEFD)
+                                                    else -> Color(0xFFECE0FD)
+                                                }
+                                            )
+                                            .border(
+                                                1.dp,
+                                                when (mission) {
+                                                    DismissType.SHAKE -> Color(0xFFFF5722)
+                                                    DismissType.MATH -> Color(0xFF338957)
+                                                    DismissType.STEP -> Color(0xFFED846D)
+                                                    DismissType.QR_CODE -> Color(0xFF8455FD)
+                                                    DismissType.TYPING -> Color(0xFF936BFD)
+                                                    else -> Color(0xFF8B64DC)
+                                                },
+                                                RoundedCornerShape(16.dp)
+                                            )
                                             .clickable {
-                                                haptics.pulseAppleButtonClick()
-                                                selectedMissionType = DismissType.OFF
-                                            },
+                                                haptics.pulseAppleSelection()
+                                                if (mission == DismissType.QR_CODE) {
+                                                    val cameraGranted = ContextCompat.checkSelfPermission(
+                                                        context,
+                                                        Manifest.permission.CAMERA
+                                                    ) == PackageManager.PERMISSION_GRANTED
+                                                    if (!cameraGranted) {
+                                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                                    }
+                                                }
+                                                isMissionPickerOpen = true
+                                            }
+                                            .testTag("mission_slot_$slotIdx"),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Remove",
-                                            tint = Color(0xFF64748B),
-                                            modifier = Modifier.size(11.dp)
-                                        )
-                                    }
+                                        // Delete badge
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(3.dp)
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFF1F5F9))
+                                                .clickable {
+                                                    haptics.pulseAppleButtonClick()
+                                                    selectedMissions = selectedMissions.filterIndexed { i, _ -> i != slotIdx }.ifEmpty { listOf(DismissType.OFF) }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Remove",
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(11.dp)
+                                            )
+                                        }
 
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        when (selectedMissionType) {
-                                            DismissType.SHAKE -> {
-                                                Icon(
-                                                    imageVector = Icons.Default.Vibration,
-                                                    contentDescription = "Shake",
-                                                    tint = Color(0xFFFF5722),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "Shake",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFFFF5722)
-                                                )
-                                            }
-                                            DismissType.MATH -> {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color(0xFF8B64DC)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "+-",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "Math",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFF475569)
-                                                )
-                                            }
-                                            DismissType.COLOR_TILES -> {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color(0xFF0D9488)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Palette,
-                                                        contentDescription = "Color Tiles",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(15.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "Tiles",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFF475569)
-                                                )
-                                            }
-                                            DismissType.TYPING -> {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color(0xFFF74E76)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Keyboard,
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            when (mission) {
+                                                DismissType.TYPING -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_typing),
                                                         contentDescription = "Typing",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(15.dp)
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Typing",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF8B5CF6)
                                                     )
                                                 }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "Typing",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFF475569)
-                                                )
-                                            }
-                                            else -> {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color(0xFF38BDF8)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(text = "✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                DismissType.MATH -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_math),
+                                                        contentDescription = "Math",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Math",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF22C55E)
+                                                    )
                                                 }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = "Active",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFF475569)
-                                                )
+                                                DismissType.STEP -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_step_exact),
+                                                        contentDescription = "Step",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Step",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFFED846D)
+                                                    )
+                                                }
+                                                DismissType.QR_CODE -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_qr_exact),
+                                                        contentDescription = "QR",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "QR",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF8455FD)
+                                                    )
+                                                }
+                                                DismissType.SHAKE -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_shake),
+                                                        contentDescription = "Shake",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Shake",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFFFF5722)
+                                                    )
+                                                }
+                                                DismissType.COLOR_TILES -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_colortiles),
+                                                        contentDescription = "Tiles",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Tiles",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF2E7D32)
+                                                    )
+                                                }
+                                                DismissType.OFF -> {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_mission_off),
+                                                        contentDescription = "No Mission",
+                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Off",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF64748B)
+                                                    )
+                                                }
+                                                else -> {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(24.dp)
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                            .background(Color(0xFF38BDF8)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(text = "✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = mission.title.take(6),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF475569)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            } else {
-                                // Slot 1: Add Mission
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(72.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color(0xFFF8FAFC))
-                                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
-                                        .clickable {
-                                            haptics.pulseAppleSelection()
-                                            isMissionPickerOpen = true
-                                        }
-                                        .testTag("add_mission_slot_1"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
+                                } else {
+                                    // Empty slot: Add (+)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(72.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color(0xFFF8FAFC))
+                                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
+                                            .clickable {
+                                                haptics.pulseAppleSelection()
+                                                isMissionPickerOpen = true
+                                            }
+                                            .testTag("add_mission_slot_$slotIdx"),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = "Add mission",
-                                            tint = Color(0xFF64748B),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "Add",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF64748B)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Slots 2 to 5: Empty slots, clicking opens mission picker
-                            for (slotIdx in 2..5) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(72.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color(0xFFF8FAFC))
-                                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
-                                        .clickable {
-                                            haptics.pulseAppleSelection()
-                                            isMissionPickerOpen = true
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "Add mission",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Add",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color(0xFF94A3B8)
+                                            )
                                         }
-                                        .testTag("add_mission_slot_$slotIdx"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add mission",
-                                        tint = Color(0xFFCBD5E1),
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    }
                                 }
                             }
                         }
@@ -825,6 +848,59 @@ fun AlarmEditScreen(
                         .padding(18.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // Section Header: Alarm ringtone
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptics.pulseAppleButtonClick()
+                                    isRingtonePickerOpen = true
+                                },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Alarm ringtone",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (RingtoneCatalog.isMemeRingtone(soundTrack)) Color(0xFFEDE9FE) else Color(0xFFF1F5F9))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (RingtoneCatalog.isMemeRingtone(soundTrack)) "👾 Viral Meme" else "Standard Tone",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (RingtoneCatalog.isMemeRingtone(soundTrack)) Color(0xFF7C3AED) else Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Change",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF7C3AED)
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = "Change ringtone",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
                         // Sound Picker Row
                         Row(
                             modifier = Modifier
@@ -988,25 +1064,44 @@ fun AlarmEditScreen(
                         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF8FAFC)))
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Gentle wake-up row
+                        // Gentle wake-up row (Volume Fade-in)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    haptics.pulseAppleSelection()
+                                    gentleWakeUpSeconds = when (gentleWakeUpSeconds) {
+                                        0 -> 15
+                                        15 -> 25
+                                        25 -> 40
+                                        40 -> 60
+                                        else -> 0
+                                    }
+                                }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Gentle wake-up",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1E293B)
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Gentle wake-up (Fade-in)",
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Text(
+                                    text = if (gentleWakeUpSeconds > 0) "Starts at 10% volume, gradually increases" else "Instant full volume",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "$gentleWakeUpSeconds seconds",
+                                    text = if (gentleWakeUpSeconds > 0) "$gentleWakeUpSeconds s" else "Off",
                                     fontSize = 13.5.sp,
-                                    color = Color(0xFF64748B)
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (gentleWakeUpSeconds > 0) Color(0xFF0284C7) else Color(0xFF94A3B8)
                                 )
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -1015,6 +1110,63 @@ fun AlarmEditScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
+                        }
+
+                        // Gentle Mission Volume row (Focus volume so user isn't frustrated)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    haptics.pulseAppleSelection()
+                                    gentleMissionVolumeEnabled = !gentleMissionVolumeEnabled
+                                }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Gentle Mission Volume",
+                                        fontSize = 14.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFFE0F2FE))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Anti-Frustration",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0284C7)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "Lowers alarm to 30% while solving challenges so you don't get frustrated",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                            Switch(
+                                checked = gentleMissionVolumeEnabled,
+                                onCheckedChange = {
+                                    haptics.pulseAppleSelection()
+                                    gentleMissionVolumeEnabled = it
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF0284C7),
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFE2E8F0)
+                                )
+                            )
                         }
 
                         // Reminder toggles with Sample buttons
@@ -1234,6 +1386,15 @@ fun AlarmEditScreen(
                 Button(
                     onClick = {
                         haptics.pulseAppleSuccess()
+                        if (selectedMissions.contains(DismissType.QR_CODE)) {
+                            val cameraGranted = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (!cameraGranted) {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
                         val finalTitle = "$habitEmoji $title".trim()
                         val entity = (initialAlarm ?: AlarmEntity(
                             title = finalTitle,
@@ -1247,7 +1408,10 @@ fun AlarmEditScreen(
                             dismissType = selectedMissionType,
                             sound = soundTrack,
                             wallpaper = selectedWallpaper,
-                            isEnabled = true
+                            isEnabled = true,
+                            missions = selectedMissions.joinToString(",") { it.name },
+                            gradualVolume = gentleWakeUpSeconds > 0,
+                            gentleMissionVolume = gentleMissionVolumeEnabled
                         )
                         onSave(entity)
                         onDismiss()
@@ -1338,9 +1502,18 @@ fun AlarmEditScreen(
 
     if (isMissionPickerOpen) {
         WakeUpMissionPickerScreen(
-            currentMission = selectedMissionType,
-            onMissionConfirmed = { chosen ->
-                selectedMissionType = chosen
+            currentMissions = selectedMissions,
+            onMissionsConfirmed = { chosenList ->
+                selectedMissions = chosenList.ifEmpty { listOf(DismissType.OFF) }
+                if (chosenList.contains(DismissType.QR_CODE)) {
+                    val cameraGranted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!cameraGranted) {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                }
                 isMissionPickerOpen = false
             },
             onDismiss = {

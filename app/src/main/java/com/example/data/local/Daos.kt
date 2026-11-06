@@ -127,6 +127,9 @@ interface TaskDao {
     suspend fun insertTasks(tasks: List<com.example.data.model.TaskEntity>)
 
     @Update
+    suspend fun updateTasks(tasks: List<com.example.data.model.TaskEntity>)
+
+    @Update
     suspend fun updateTask(task: com.example.data.model.TaskEntity)
 
     @Delete
@@ -134,6 +137,9 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET isCompleted = :isCompleted WHERE id = :id")
     suspend fun setTaskCompleted(id: Long, isCompleted: Boolean)
+
+    @Query("UPDATE tasks SET isCompleted = :isCompleted, lastCompletedDate = :completedDate WHERE id = :id")
+    suspend fun setTaskCompletedWithDate(id: Long, isCompleted: Boolean, completedDate: String?)
 
     @Query("UPDATE tasks SET isCompleted = 0")
     suspend fun resetAllTasks()

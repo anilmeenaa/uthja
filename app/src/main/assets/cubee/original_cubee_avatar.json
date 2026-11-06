@@ -1,0 +1,57 @@
+{
+  "name": "Cubee",
+  "version": "1.0.0",
+  "dimensions": {
+    "viewBox": "0 0 200 200",
+    "baseWidth": 120,
+    "baseHeight": 120
+  },
+  "palette": {
+    "primary": "#6366F1",
+    "primaryLight": "#818CF8",
+    "primaryDark": "#4338CA",
+    "secondary": "#A5B4FC",
+    "face": "#EEF2FF",
+    "eyes": "#1E1B4B",
+    "pupilHighlight": "#FFFFFF",
+    "cheeks": "#FB7185",
+    "mouth": "#BE123C",
+    "tongue": "#FDA4AF",
+    "shadow": "rgba(30, 27, 75, 0.15)",
+    "glow": "rgba(99, 102, 241, 0.35)"
+  },
+  "animations": {
+    "waking": {
+      "durationMs": 2000,
+      "next": "idle",
+      "keyframes": [
+        { "time": 0.0, "eyes": "closed", "mouth": "neutral", "scaleY": 0.9, "y": 6 },
+        { "time": 0.35, "eyes": "halfOpen", "mouth": "yawn", "scaleY": 1.06, "y": -4 },
+        { "time": 0.65, "eyes": "blink", "mouth": "yawnSmall", "scaleY": 0.96, "y": 2 },
+        { "time": 0.85, "eyes": "openSparkle", "mouth": "smile", "scaleY": 1.02, "y": -1 },
+        { "time": 1.0, "eyes": "open", "mouth": "smile", "scaleY": 1.0, "y": 0 }
+      ]
+    },
+    "idle": {
+      "loop": true,
+      "cycleMs": 3200,
+      "blinkIntervalMs": 3500,
+      "motion": {
+        "floatAmplitude": 4,
+        "breatheScale": 1.02,
+        "tiltDeg": 1.5
+      }
+    },
+    "laughing": {
+      "durationMs": 1800,
+      "next": "idle",
+      "bounceCount": 4,
+      "motion": {
+        "bounceAmplitude": 8,
+        "squashScale": 0.94,
+        "stretchScale": 1.06,
+        "tiltDeg": 3.0
+      }
+    }
+  }
+}

@@ -28,7 +28,7 @@ fun LuneHeader(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             AppText(
-                text = "LUNE",
+                text = "Uthja",
                 variant = AppTextVariant.LABEL,
                 tone = AppTextTone.ACCENT
             )

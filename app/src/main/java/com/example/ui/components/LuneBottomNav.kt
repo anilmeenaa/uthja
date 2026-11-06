@@ -111,8 +111,8 @@ fun LuneBottomNavigation(
         // Frosted Glass Pill Bar Container
         Surface(
             shape = RoundedCornerShape(38.dp),
-            color = if (isDark) Color(0xF21D1726) else Color(0xF2FFFCF6),
-            border = BorderStroke(1.dp, if (isDark) Color(0x33A78BFA) else Color(0xB8FFFFFF)),
+            color = if (isDark) Color(0xF21D1726) else Color(0xF8FFFFFF),
+            border = BorderStroke(1.dp, if (isDark) Color(0x33A78BFA) else Color(0x1F000000)),
             shadowElevation = 4.dp,
             modifier = Modifier
                 .fillMaxWidth()

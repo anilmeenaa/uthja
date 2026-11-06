@@ -57,6 +57,8 @@ data class ActiveAlarmState(
     val title: String = "",
     val wakeMode: WakeMode = WakeMode.FOCUS,
     val dismissType: DismissType = DismissType.OFF,
+    val missions: List<DismissType> = listOf(DismissType.MATH),
+    val currentMissionIndex: Int = 0,
     val sound: String = "Good Morningggg",
     val startTimestamp: Long = 0L,
     val elapsedSeconds: Int = 0,
@@ -67,8 +69,22 @@ data class ActiveAlarmState(
     val isConquered: Boolean = false,
     val snoozeCount: Int = 0,
     val snoozeRemainingMinutes: Int = 0,
-    val wallpaper: String = com.example.data.model.WallpaperCatalog.DEFAULT_WALLPAPER_ID
-)
+    val wallpaper: String = com.example.data.model.WallpaperCatalog.DEFAULT_WALLPAPER_ID,
+    val isDoingMission: Boolean = false,
+    val gradualVolume: Boolean = true,
+    val gentleMissionVolume: Boolean = true,
+    val isQuickAlarm: Boolean = false,
+    val quickRingDurationSeconds: Int = 5
+) {
+    val currentMission: DismissType
+        get() = missions.getOrNull(currentMissionIndex) ?: dismissType
+
+    val totalMissions: Int
+        get() = missions.size.coerceAtLeast(1)
+
+    val isLastMission: Boolean
+        get() = currentMissionIndex >= totalMissions - 1
+}
 
 data class ActiveSleepState(
     val isTracking: Boolean = false,
@@ -99,6 +115,10 @@ data class SupabaseUiState(
     val errorMessage: String? = null
 )
 
+private fun getTodayDateString(): String {
+    return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+}
+
 class LuneViewModel(application: Application) : AndroidViewModel(application) {
     private val database = LuneDatabase.getDatabase(application)
     private val repository = LuneRepository(
@@ -113,6 +133,8 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
 
     val alarms: StateFlow<List<AlarmEntity>> = repository.alarms
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    suspend fun getAlarmById(id: Long): AlarmEntity? = repository.getAlarmById(id)
 
     val sleepSessions: StateFlow<List<SleepSessionEntity>> = repository.sleepSessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -133,6 +155,16 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
 
     val tasks: StateFlow<List<com.example.data.model.TaskEntity>> = repository.tasks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _currentDate = MutableStateFlow<String>(getTodayDateString())
+    val currentDate: StateFlow<String> = _currentDate.asStateFlow()
+
+    val todayTasks: StateFlow<List<com.example.data.model.TaskEntity>> = combine(
+        repository.tasks,
+        _currentDate
+    ) { allTasks: List<com.example.data.model.TaskEntity>, todayDate: String ->
+        allTasks.filter { it.isScheduledForDate(todayDate) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _activeAlarm = MutableStateFlow(ActiveAlarmState())
     val activeAlarm: StateFlow<ActiveAlarmState> = _activeAlarm.asStateFlow()
@@ -183,6 +215,19 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAlarmMuted = MutableStateFlow(false)
     val isAlarmMuted: StateFlow<Boolean> = _isAlarmMuted.asStateFlow()
 
+    fun setMissionFocusMode(isDoingMission: Boolean) {
+        val state = _activeAlarm.value
+        if (state.isConquered || !state.isRinging) {
+            _activeAlarm.value = state.copy(isDoingMission = false)
+            return
+        }
+        _activeAlarm.value = state.copy(
+            isDoingMission = isDoingMission
+        )
+        soundManager.setMissionActive(isDoingMission)
+        AlarmRingingService.setMissionMode(getApplication(), isDoingMission)
+    }
+
     fun toggleAlarmMute() {
         val next = !_isAlarmMuted.value
         _isAlarmMuted.value = next
@@ -191,7 +236,8 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             val mode = _activeAlarm.value.wakeMode
             val sound = _activeAlarm.value.sound
-            soundManager.playAlarmToneWithSound(sound, mode, viewModelScope)
+            soundManager.playAlarmToneWithSound(sound, mode, viewModelScope, gradualVolume = false)
+            soundManager.setMissionActive(_activeAlarm.value.isDoingMission)
         }
     }
 
@@ -199,16 +245,22 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
     private var sleepTimerJob: Job? = null
 
     init {
-        // Seed initial tasks if empty
+        // Seed initial tasks matching the approved design if empty
         viewModelScope.launch {
-            repository.seedInitialTasksIfEmpty(
-                listOf(
-                    com.example.data.model.TaskEntity(title = "Drink water", iconType = "WATER", isCompleted = true, orderIndex = 0),
-                    com.example.data.model.TaskEntity(title = "Meditation", iconType = "MEDITATION", isCompleted = false, orderIndex = 1),
-                    com.example.data.model.TaskEntity(title = "10-min mindful break", iconType = "COFFEE", isCompleted = true, orderIndex = 2),
-                    com.example.data.model.TaskEntity(title = "Wind down at", timePill = "10:30 PM", iconType = "MOON", isCompleted = false, orderIndex = 3)
+            try {
+                repository.seedInitialTasksIfEmpty(
+                    listOf(
+                        com.example.data.model.TaskEntity(title = "Drink water", timePill = "2 glasses", iconType = "WATER", isCompleted = true, orderIndex = 0),
+                        com.example.data.model.TaskEntity(title = "Reading", timePill = "10 pages", iconType = "BOOK", isCompleted = true, orderIndex = 1),
+                        com.example.data.model.TaskEntity(title = "Meditation", timePill = "10 min", iconType = "MEDITATION", isCompleted = false, orderIndex = 2),
+                        com.example.data.model.TaskEntity(title = "Take a walk", timePill = "20 min", iconType = "WORKOUT", isCompleted = false, orderIndex = 3),
+                        com.example.data.model.TaskEntity(title = "Mindful break", timePill = "5 min", iconType = "COFFEE", isCompleted = false, orderIndex = 4),
+                        com.example.data.model.TaskEntity(title = "Wind down", timePill = "10:30 PM", iconType = "MOON", isCompleted = false, orderIndex = 5)
+                    )
                 )
-            )
+            } catch (e: Throwable) {
+                android.util.Log.e("LuneViewModel", "Error seeding initial tasks", e)
+            }
         }
 
         // Initialize ShakeDetector listener using Android SensorManager
@@ -261,34 +313,129 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        viewModelScope.launch {
+            // Midnight transition watcher: checks date regularly and immediately updates today's routine
+            while (isActive) {
+                delay(10_000L)
+                val nowStr = getTodayDateString()
+                if (nowStr != _currentDate.value) {
+                    _currentDate.value = nowStr
+                }
+            }
+        }
     }
 
     // --- Daily Tasks Handling ---
 
     fun toggleTask(task: com.example.data.model.TaskEntity) {
         viewModelScope.launch {
-            repository.setTaskCompleted(task.id, !task.isCompleted)
+            val todayDate = _currentDate.value
+            val isCurrentlyDone = task.isCompletedForDate(todayDate)
+            val newCompleted = !isCurrentlyDone
+
+            val updatedTask = task.copy(
+                isCompleted = newCompleted,
+                lastCompletedDate = if (newCompleted) todayDate else null
+            )
+            repository.saveTask(updatedTask)
+
+            if (newCompleted) {
+                // If marked complete, cancel the pending reminder so user is not nudged
+                com.example.alarm.TaskReminderScheduler.cancelReminder(getApplication(), task.id)
+            } else if (!task.reminderTime.isNullOrBlank()) {
+                // Re-schedule reminder if unchecked
+                com.example.alarm.TaskReminderScheduler.scheduleReminder(
+                    getApplication(),
+                    id = task.id,
+                    title = task.title,
+                    reminderTime = task.reminderTime,
+                    targetDateStr = task.scheduledDate ?: todayDate
+                )
+            }
         }
     }
 
-    fun addTask(title: String, timePill: String? = null, iconType: String = "WATER") {
+    fun markTaskCompleted(taskId: Long) {
+        viewModelScope.launch {
+            val todayDate = _currentDate.value
+            val task = tasks.value.find { it.id == taskId }
+            if (task != null) {
+                repository.saveTask(
+                    task.copy(
+                        isCompleted = true,
+                        lastCompletedDate = todayDate
+                    )
+                )
+            } else {
+                repository.setTaskCompletedWithDate(taskId, true, todayDate)
+            }
+            com.example.alarm.TaskReminderScheduler.cancelReminder(getApplication(), taskId)
+        }
+    }
+
+    fun addTask(
+        title: String,
+        timePill: String? = null,
+        iconType: String = "WATER",
+        reminderTime: String? = null,
+        scheduledDate: String? = null,
+        isDaily: Boolean = true
+    ) {
         viewModelScope.launch {
             val currentTasks = tasks.value
             val order = currentTasks.size
-            repository.saveTask(
+            val effectiveDate = if (isDaily) null else (scheduledDate ?: _currentDate.value)
+            val createdId = repository.saveTask(
                 com.example.data.model.TaskEntity(
                     title = title.trim(),
                     timePill = timePill?.trim()?.ifBlank { null },
                     iconType = iconType,
                     isCompleted = false,
-                    orderIndex = order
+                    orderIndex = order,
+                    reminderTime = reminderTime?.trim()?.ifBlank { null },
+                    scheduledDate = effectiveDate,
+                    isDaily = isDaily,
+                    lastCompletedDate = null
                 )
             )
+            if (!reminderTime.isNullOrBlank()) {
+                com.example.alarm.TaskReminderScheduler.scheduleReminder(
+                    getApplication(),
+                    id = createdId,
+                    title = title.trim(),
+                    reminderTime = reminderTime.trim(),
+                    targetDateStr = effectiveDate ?: _currentDate.value
+                )
+            }
+        }
+    }
+
+    fun addTask(title: String, timePill: String? = null, iconType: String = "WATER", reminderTime: String? = null) {
+        addTask(title, timePill, iconType, reminderTime, scheduledDate = null, isDaily = true)
+    }
+
+    fun updateTaskReminder(task: com.example.data.model.TaskEntity, newReminderTime: String?) {
+        viewModelScope.launch {
+            val updated = task.copy(reminderTime = newReminderTime?.trim()?.ifBlank { null })
+            repository.saveTask(updated)
+            if (!newReminderTime.isNullOrBlank()) {
+                com.example.alarm.TaskReminderScheduler.scheduleReminder(
+                    getApplication(),
+                    id = task.id,
+                    title = task.title,
+                    reminderTime = newReminderTime.trim(),
+                    targetDateStr = task.scheduledDate ?: _currentDate.value
+                )
+            } else {
+                com.example.alarm.TaskReminderScheduler.cancelReminder(getApplication(), task.id)
+            }
         }
     }
 
     fun deleteTask(task: com.example.data.model.TaskEntity) {
         viewModelScope.launch {
+            com.example.alarm.TaskReminderScheduler.cancelReminder(getApplication(), task.id)
             repository.deleteTask(task)
         }
     }
@@ -296,6 +443,12 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
     fun resetAllTasks() {
         viewModelScope.launch {
             repository.resetAllTasks()
+        }
+    }
+
+    fun reorderTasks(reorderedList: List<com.example.data.model.TaskEntity>) {
+        viewModelScope.launch {
+            repository.updateTasksOrder(reorderedList)
         }
     }
 
@@ -307,8 +460,31 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         wakeMode: WakeMode,
         dismissType: DismissType,
         sound: String = "Good Morningggg",
-        wallpaper: String = com.example.data.model.WallpaperCatalog.DEFAULT_WALLPAPER_ID
+        wallpaper: String = com.example.data.model.WallpaperCatalog.DEFAULT_WALLPAPER_ID,
+        missions: List<DismissType> = emptyList(),
+        gradualVolume: Boolean = true,
+        gentleMissionVolume: Boolean = true
     ) {
+        val isQuick = title.contains("Quick Alarm", ignoreCase = true)
+        val quickDurationSec = if (title.contains("10s")) 10 else 5
+        val effectiveSound = if (isQuick) "Birds" else sound
+
+        val rawMissions = if (isQuick) {
+            listOf(DismissType.OFF)
+        } else if (missions.isNotEmpty()) {
+            missions
+        } else {
+            listOf(dismissType)
+        }
+
+        val effectiveMissions = if (isQuick) {
+            listOf(DismissType.OFF)
+        } else {
+            rawMissions.flatMap {
+                if (it == DismissType.BOTH) listOf(DismissType.MATH, DismissType.SHAKE) else listOf(it)
+            }.ifEmpty { listOf(dismissType) }
+        }
+
         val requiredSolves = when (wakeMode) {
             WakeMode.GENTLE -> 1
             WakeMode.FOCUS -> 2
@@ -328,15 +504,21 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             alarmId = alarmId,
             title = title,
             wakeMode = wakeMode,
-            dismissType = dismissType,
-            sound = sound,
+            dismissType = effectiveMissions.firstOrNull() ?: dismissType,
+            missions = effectiveMissions,
+            currentMissionIndex = 0,
+            sound = effectiveSound,
             wallpaper = wallpaper,
             startTimestamp = System.currentTimeMillis(),
             elapsedSeconds = 0,
             mathState = initialMath,
             shakeCurrentCount = 0,
             shakeTargetCount = targetShakes,
-            isConquered = false
+            isConquered = false,
+            gradualVolume = if (isQuick) false else gradualVolume,
+            gentleMissionVolume = gentleMissionVolume,
+            isQuickAlarm = isQuick,
+            quickRingDurationSeconds = quickDurationSec
         )
 
         // Start sound, haptics, sensor, and foreground ringing service
@@ -345,24 +527,35 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             alarmId = alarmId,
             title = title,
             wakeMode = wakeMode.name,
-            dismissType = dismissType.name,
-            sound = sound,
-            wallpaper = wallpaper
+            dismissType = (effectiveMissions.firstOrNull() ?: dismissType).name,
+            sound = effectiveSound,
+            wallpaper = wallpaper,
+            missions = effectiveMissions.joinToString(",") { it.name },
+            gradualVolume = if (isQuick) false else gradualVolume,
+            gentleMissionVolume = gentleMissionVolume
         )
-        soundManager.playAlarmToneWithSound(sound, wakeMode, viewModelScope)
+        // Ensure SoundManager is cleared of any preview tones or lingering sounds
+        soundManager.stopAlarmTone()
+        soundManager.stopVibePreview()
         haptics.startAlarmVibration()
 
         // ALWAYS activate Android SensorManager accelerometer during alarm ringing
         shakeDetector?.start()
 
-        // Ticker for elapsed seconds
+        // Ticker for elapsed seconds & auto-dismiss for quick alarm
         ringingTimerJob?.cancel()
         ringingTimerJob = viewModelScope.launch {
             while (isActive && _activeAlarm.value.isRinging && !_activeAlarm.value.isConquered) {
                 delay(1000L)
+                val newElapsed = _activeAlarm.value.elapsedSeconds + 1
                 _activeAlarm.value = _activeAlarm.value.copy(
-                    elapsedSeconds = _activeAlarm.value.elapsedSeconds + 1
+                    elapsedSeconds = newElapsed
                 )
+                // Quick alarm auto-dismiss after set duration (5s or 10s)
+                if (_activeAlarm.value.isQuickAlarm && newElapsed >= _activeAlarm.value.quickRingDurationSeconds) {
+                    conquerAndDismissAlarm()
+                    break
+                }
             }
         }
     }
@@ -454,18 +647,7 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             haptics.pulseSuccess()
 
             if (newSolvedCount >= math.requiredSolves) {
-                // If dismissType is BOTH and shake is not complete yet, switch or check shake
-                if (state.dismissType == DismissType.BOTH && state.shakeCurrentCount < state.shakeTargetCount) {
-                    _activeAlarm.value = state.copy(
-                        mathState = math.copy(
-                            solvedCount = newSolvedCount,
-                            attempts = updatedAttempts,
-                            currentInput = ""
-                        )
-                    )
-                } else {
-                    conquerAndDismissAlarm()
-                }
+                onMissionCompleted()
             } else {
                 // Generate next problem
                 val nextMath = generateMathProblem(state.wakeMode, math.requiredSolves)
@@ -491,11 +673,13 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var lastMissionCompletedTime = 0L
+
     fun onShakeRegistered() {
         if (!_activeAlarm.value.isRinging || _activeAlarm.value.isConquered) return
 
-        val current = _activeAlarm.value.shakeCurrentCount + 1
         val target = _activeAlarm.value.shakeTargetCount
+        val current = (_activeAlarm.value.shakeCurrentCount + 1).coerceAtMost(target)
         haptics.pulseShake()
 
         _activeAlarm.value = _activeAlarm.value.copy(
@@ -503,14 +687,7 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         if (current >= target) {
-            // If dismissType is BOTH, check math
-            if (_activeAlarm.value.dismissType == DismissType.BOTH &&
-                _activeAlarm.value.mathState.solvedCount < _activeAlarm.value.mathState.requiredSolves
-            ) {
-                // Shake done, keep math active
-            } else {
-                conquerAndDismissAlarm()
-            }
+            onMissionCompleted()
         }
     }
 
@@ -518,23 +695,94 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         onShakeRegistered()
     }
 
+    /**
+     * Called when the user completes their current mission challenge.
+     * If there are subsequent missions configured in the alarm, it transitions to the next one.
+     * If all missions are completed, it completely stops the alarm ringing and sound immediately.
+     */
+    fun onMissionCompleted() {
+        val now = System.currentTimeMillis()
+        if (now - lastMissionCompletedTime < 750L) return
+        lastMissionCompletedTime = now
+
+        val state = _activeAlarm.value
+        if (!state.isRinging || state.isConquered) return
+
+        if (state.currentMissionIndex < state.totalMissions - 1) {
+            // More missions to complete in sequence!
+            val nextIndex = state.currentMissionIndex + 1
+            haptics.pulseAppleSuccess()
+
+            val nextMath = generateMathProblem(state.wakeMode, when (state.wakeMode) {
+                WakeMode.GENTLE -> 1
+                WakeMode.FOCUS -> 2
+                WakeMode.BEAST -> 3
+            })
+
+            _activeAlarm.value = state.copy(
+                currentMissionIndex = nextIndex,
+                shakeCurrentCount = 0,
+                mathState = nextMath
+            )
+
+            val nextMission = state.missions.getOrNull(nextIndex)
+            if (nextMission == DismissType.SHAKE || nextMission == DismissType.BOTH) {
+                shakeDetector?.start()
+            }
+        } else {
+            // ALL missions completed! Stop alarm ringing immediately and completely!
+            conquerAndDismissAlarm()
+        }
+    }
+
+    /**
+     * Completely and synchronously halts all alarm sounds, service, vibration, and timers.
+     */
+    fun stopAllAlarmEffects() {
+        try {
+            AlarmRingingService.stop(getApplication())
+        } catch (e: Exception) {
+            android.util.Log.e("LuneViewModel", "Error stopping AlarmRingingService", e)
+        }
+        try {
+            soundManager.setMissionActive(false)
+            soundManager.stopAlarmTone()
+            soundManager.stopVibePreview()
+        } catch (e: Exception) {
+            android.util.Log.e("LuneViewModel", "Error stopping SoundManager", e)
+        }
+        try {
+            haptics.stopAlarmVibration()
+        } catch (e: Exception) {
+            android.util.Log.e("LuneViewModel", "Error stopping Haptics", e)
+        }
+        try {
+            shakeDetector?.stop()
+        } catch (e: Exception) {
+            android.util.Log.e("LuneViewModel", "Error stopping ShakeDetector", e)
+        }
+        ringingTimerJob?.cancel()
+        ringingTimerJob = null
+    }
+
     fun conquerAndDismissAlarm() {
         val state = _activeAlarm.value
         if (state.isConquered) return
 
-        AlarmRingingService.stop(getApplication())
-        soundManager.stopAlarmTone()
-        haptics.stopAlarmVibration()
+        // 1. Immediately and completely stop all alarm ringing effects
+        stopAllAlarmEffects()
         haptics.pulseSuccess()
-        shakeDetector?.stop()
-        ringingTimerJob?.cancel()
+
+        // 2. Play short pleasant victory chime upon mission completion
+        soundManager.playSuccessChime(viewModelScope)
 
         _activeAlarm.value = state.copy(
             isConquered = true,
+            isDoingMission = false,
             shakeCurrentCount = state.shakeTargetCount
         )
 
-        // Log alarm event in database
+        // 3. Log alarm event in database
         viewModelScope.launch {
             val totalSeconds = state.elapsedSeconds.coerceAtLeast(1)
             val totalAttempts = state.mathState.attempts.coerceAtLeast(1)
@@ -544,7 +792,7 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
                     triggeredAt = state.startTimestamp,
                     dismissedAt = System.currentTimeMillis(),
                     dismissDurationSeconds = totalSeconds,
-                    dismissType = state.dismissType,
+                    dismissType = state.currentMission,
                     attempts = totalAttempts,
                     success = true,
                     wakeMode = state.wakeMode
@@ -552,24 +800,18 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        // Seamlessly dismiss active alarm screen and open morning sleep report
+        // 4. Seamlessly dismiss active alarm screen after victory chime and open morning sleep report
         viewModelScope.launch {
-            delay(850L)
-            if (_activeAlarm.value.isRinging) {
-                dismissConqueredAlarm()
-            }
+            delay(1100L)
+            dismissConqueredAlarm()
         }
     }
 
     fun dismissConqueredAlarm() {
         val alarmTitle = _activeAlarm.value.title
-        AlarmRingingService.stop(getApplication())
-        soundManager.stopAlarmTone()
-        haptics.stopAlarmVibration()
-        shakeDetector?.stop()
-        ringingTimerJob?.cancel()
+        stopAllAlarmEffects()
 
-        _activeAlarm.value = ActiveAlarmState(isRinging = false)
+        _activeAlarm.value = ActiveAlarmState(isRinging = false, isConquered = true)
         generateMorningReport(alarmTitle)
     }
 
@@ -583,11 +825,7 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Emergency snooze: 3 minutes
-        AlarmRingingService.stop(getApplication())
-        soundManager.stopAlarmTone()
-        haptics.stopAlarmVibration()
-        shakeDetector?.stop()
-        ringingTimerJob?.cancel()
+        stopAllAlarmEffects()
 
         val nextSnoozeCount = _activeAlarm.value.snoozeCount + 1
         _activeAlarm.value = ActiveAlarmState(
@@ -803,12 +1041,25 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.updateProfile(updated)
 
+            val mappedDismissType = when (mission.trim().lowercase()) {
+                "shake to dismiss", "shake" -> DismissType.SHAKE
+                "math" -> DismissType.MATH
+                "find color tiles", "color tiles" -> DismissType.COLOR_TILES
+                "typing" -> DismissType.TYPING
+                "step" -> DismissType.STEP
+                "habit item snap", "qr", "qr/barcode" -> DismissType.QR_CODE
+                "off" -> DismissType.OFF
+                else -> DismissType.SHAKE
+            }
+
             val alarm = AlarmEntity(
                 title = habitTitle,
                 hour = hour,
                 minute = minute,
                 repeatDays = "DAILY",
                 isEnabled = true,
+                dismissType = mappedDismissType,
+                missions = mappedDismissType.name,
                 sound = sound,
                 wallpaper = wallpaper
             )
@@ -817,7 +1068,13 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveQuickAlarm(minutes: Int, sound: String = "Orkney", volume: Float = 0.5f, vibrate: Boolean = true) {
+    fun saveQuickAlarm(
+        minutes: Int,
+        ringDurationSeconds: Int = 5,
+        sound: String = "Birds",
+        volume: Float = 0.5f,
+        vibrate: Boolean = true
+    ) {
         viewModelScope.launch {
             val cal = java.util.Calendar.getInstance().apply {
                 add(java.util.Calendar.MINUTE, minutes)
@@ -825,12 +1082,14 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
             val minute = cal.get(java.util.Calendar.MINUTE)
             val alarm = AlarmEntity(
-                title = "⚡ Quick Alarm (${minutes}m)",
+                title = "⚡ Quick Alarm (${minutes}m • ${ringDurationSeconds}s)",
                 hour = hour,
                 minute = minute,
                 repeatDays = "ONCE",
                 isEnabled = true,
-                sound = sound
+                dismissType = DismissType.OFF,
+                missions = "OFF",
+                sound = "Birds"
             )
             val id = repository.saveAlarm(alarm)
             AlarmScheduler.scheduleAlarm(getApplication(), alarm.copy(id = id))
@@ -1115,6 +1374,13 @@ class LuneViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.updateProfile(updated)
             onComplete()
+        }
+    }
+
+    fun refreshCurrentDate() {
+        val nowStr = getTodayDateString()
+        if (nowStr != _currentDate.value) {
+            _currentDate.value = nowStr
         }
     }
 

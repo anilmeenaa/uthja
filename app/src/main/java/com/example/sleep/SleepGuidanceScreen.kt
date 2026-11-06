@@ -2,13 +2,13 @@ package com.example.sleep
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,11 +17,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -29,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -40,6 +38,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 
+/**
+ * Sleep Guidance Screen matching the exact user-attached screen:
+ * - Deep starry midnight sky with constellations and gentle nebula
+ * - Cinematic bedside scene showing a soft textured blue pillow on the bed,
+ *   a modern smartphone resting on the wooden nightstand charging via a white cable,
+ *   warm bedside lamp and potted houseplant
+ * - Exact headline: "Place your phone\nnext to your pillow"
+ * - Subtitle: "Keep it charging overnight"
+ * - Glowing frosted-blue/white pill button: "I got it"
+ */
 @Composable
 fun SleepGuidanceScreen(
     onGotIt: () -> Unit,
@@ -49,125 +57,110 @@ fun SleepGuidanceScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF18233C),
-                        Color(0xFF0D1222),
-                        Color(0xFF06080E)
-                    ),
-                    radius = 1200f
-                )
-            )
-            .statusBarsPadding()
-            .navigationBarsPadding()
+            .background(Color(0xFF040711))
     ) {
-        // Ambient background stars
+        // 1. FULL-SCREEN BEDROOM & STARRY SKY ILLUSTRATION
+        Image(
+            painter = painterResource(id = R.drawable.bg_sleep_guidance_full),
+            contentDescription = "Place your phone next to your pillow scene",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // 2. AMBIENT ATMOSPHERIC GLOWS (Matching screenshot light atmosphere)
+        // Upper celestial starlight glow
         Box(
             modifier = Modifier
-                .offset(x = 60.dp, y = 70.dp)
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.45f))
+                .align(Alignment.TopCenter)
+                .padding(top = 40.dp)
+                .size(360.dp)
+                .blur(50.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF3B82F6).copy(alpha = 0.15f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-55).dp, y = 110.dp)
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.5f))
-        )
-        Box(
-            modifier = Modifier
-                .offset(x = 85.dp, y = 180.dp)
-                .size(3.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.6f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-100).dp, y = 160.dp)
-                .size(2.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.35f))
-        )
+
+        // Warm bedside lamp glow on the right
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .offset(x = (-60).dp, y = (-80).dp)
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.4f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .offset(x = 40.dp, y = 120.dp)
-                .size(3.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.35f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = (-70).dp, y = (-160).dp)
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.3f))
+                .offset(x = 60.dp, y = 80.dp)
+                .size(240.dp)
+                .blur(45.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFFFE8A3).copy(alpha = 0.22f),
+                            Color(0xFF38BDF8).copy(alpha = 0.08f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
         )
 
+        // 3. FOREGROUND CONTENT & CONTROLS
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header
+            // Header: Place your phone next to your pillow
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 28.dp)
+                    .padding(top = 24.dp)
             ) {
                 Text(
                     text = "Place your phone\nnext to your pillow",
                     color = Color.White,
-                    fontSize = 28.sp,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
-                    lineHeight = 34.sp,
+                    lineHeight = 36.sp,
                     textAlign = TextAlign.Center,
                     letterSpacing = (-0.5).sp
                 )
-                Spacer(modifier = Modifier.height(14.dp))
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
                     text = "Keep it charging overnight",
-                    color = Color(0xFFD1D5DB),
+                    color = Color(0xFFC7D2FE),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center,
-                    letterSpacing = 0.2.sp
+                    letterSpacing = 0.1.sp
                 )
             }
 
-            // Center Sleep Illustration with Glow
+            // Center: Clear Pillow & Phone charging graphic
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // Subtle radial glow backdrop
+                // Soft blue halo glow
                 Box(
                     modifier = Modifier
-                        .size(280.dp)
-                        .blur(32.dp)
+                        .size(320.dp)
+                        .blur(36.dp)
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(
-                                    Color(0xFF44567E).copy(alpha = 0.35f),
+                                    Color(0xFF3B82F6).copy(alpha = 0.28f),
+                                    Color(0xFF0284C7).copy(alpha = 0.12f),
                                     Color.Transparent
                                 )
                             ),
@@ -175,63 +168,78 @@ fun SleepGuidanceScreen(
                         )
                 )
 
-                // Bed Pillow & Phone image
+                // Distinct, high-contrast Pillow & Phone illustration
                 Image(
                     painter = painterResource(id = R.drawable.img_sleep_guidance_pillow),
-                    contentDescription = "Phone charging on a soft pillow overnight",
+                    contentDescription = "Pillow on bed with charging smartphone next to it",
                     modifier = Modifier
-                        .widthIn(max = 320.dp)
-                        .aspectRatio(1f)
-                        .padding(16.dp),
+                        .size(300.dp)
+                        .padding(12.dp),
                     contentScale = ContentScale.Fit
                 )
             }
 
-            // Actions Footer
+            // Bottom Actions: Glowing Pill Button ("I got it")
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp)
+                    .padding(bottom = 28.dp)
             ) {
-                Button(
-                    onClick = onGotIt,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .testTag("guidance_got_it_button"),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF030712)
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                // Soft outer neon glow behind the button
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "I got it",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.3.sp
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(64.dp)
+                            .blur(18.dp)
+                            .background(
+                                color = Color(0xFF60A5FA).copy(alpha = 0.65f),
+                                shape = RoundedCornerShape(32.dp)
+                            )
                     )
-                }
 
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = "Never show again",
-                    color = Color(0xFFD1D5DB),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.2.sp,
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onNeverShowAgain
+                    // Glowing Pill Button matching screenshot
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFFFFF),
+                                        Color(0xFFDBEAFE),
+                                        Color(0xFFBFDBFE)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.5.dp,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFFFFF),
+                                        Color(0xFF93C5FD)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(30.dp)
+                            )
+                            .clickable(onClick = onGotIt)
+                            .testTag("guidance_got_it_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "I got it",
+                            color = Color(0xFF0F172A),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.2.sp
                         )
-                        .padding(vertical = 8.dp, horizontal = 16.dp)
-                        .testTag("guidance_never_show_again_button")
-                )
+                    }
+                }
             }
         }
     }

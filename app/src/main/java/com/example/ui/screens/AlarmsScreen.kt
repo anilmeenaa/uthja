@@ -56,12 +56,21 @@ import com.example.ui.theme.LocalIsDarkMode
 import com.example.alarm.AlarmScheduler
 import com.example.alarm.rememberAppleHaptics
 import com.example.data.model.AlarmEntity
+import com.example.data.model.DismissType
 import com.example.ui.dialogs.QuickAlarmDialog
+import com.example.R
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import java.util.Locale
+
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import kotlinx.coroutines.delay
 
 /**
  * Alarms Screen matching HTML 1 and Screenshot 1:
- * - Top header with ring countdown: "Ring in 17 hr. 35 min >" and three dots menu
+ * - Top header with ring countdown: "Rings in 17 hr. 35 min >" and three dots menu
  * - Alarm card with repeat days (S M T W T F S), cyan toggle switch, bold time (7:00 am),
  *   mission badge, habit title ("🐥 Wake up early") and card menu (⋮)
  * - Vibrant coral-red FAB (+) with soft drop shadow at bottom right
@@ -76,7 +85,8 @@ fun AlarmsScreen(
     onTestAlarm: (AlarmEntity) -> Unit,
     onAddNewAlarm: () -> Unit,
     onAddHabitAlarm: (() -> Unit)? = null,
-    onSaveQuickAlarm: ((minutes: Int, sound: String, volume: Float, vibrate: Boolean) -> Unit)? = null,
+    onSaveQuickAlarm: ((minutes: Int, ringDurationSeconds: Int, sound: String, volume: Float, vibrate: Boolean) -> Unit)? = null,
+    onOpenSleepVisualizer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val haptics = rememberAppleHaptics()
@@ -84,28 +94,41 @@ fun AlarmsScreen(
     var isFabMenuExpanded by remember { mutableStateOf(false) }
     var isQuickAlarmOpen by remember { mutableStateOf(false) }
 
-    // Find next upcoming alarm for countdown banner
-    val activeAlarms = alarms.filter { it.isEnabled }
-    val nextAlarmInfo = remember(alarms) {
+    // Live clock ticker aligned to system minute boundaries
+    var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            currentTimeMs = now
+            val msToNextMinute = (60_000L - (now % 60_000L)).coerceAtLeast(1000L)
+            delay(msToNextMinute)
+            currentTimeMs = System.currentTimeMillis()
+        }
+    }
+
+    // Find next upcoming alarm for countdown banner using live currentTimeMs
+    val activeAlarms = remember(alarms) { alarms.filter { it.isEnabled } }
+    val nextAlarmInfo = remember(activeAlarms, currentTimeMs) {
         if (activeAlarms.isEmpty()) {
             null
         } else {
-            val nowMs = System.currentTimeMillis()
             activeAlarms.map { alarm ->
-                val nextMs = AlarmScheduler.calculateNextTriggerTime(alarm.hour, alarm.minute, alarm.repeatDays)
-                alarm to (nextMs - nowMs)
+                val nextMs = AlarmScheduler.calculateNextTriggerTime(
+                    alarm.hour,
+                    alarm.minute,
+                    alarm.repeatDays,
+                    currentTimeMs
+                )
+                alarm to nextMs
             }.minByOrNull { it.second }
         }
     }
 
-    val countdownText = remember(nextAlarmInfo) {
+    val countdownText = remember(nextAlarmInfo, currentTimeMs) {
         if (nextAlarmInfo == null) {
             "No active alarms"
         } else {
-            val diffMs = nextAlarmInfo.second.coerceAtLeast(0L)
-            val hours = diffMs / (1000 * 60 * 60)
-            val mins = (diffMs / (1000 * 60)) % 60
-            if (hours > 0) "Ring in $hours hr. $mins min" else "Ring in $mins min"
+            AlarmScheduler.formatRemainingTime(nextAlarmInfo.second, currentTimeMs)
         }
     }
 
@@ -438,8 +461,8 @@ fun AlarmsScreen(
         if (isQuickAlarmOpen && onSaveQuickAlarm != null) {
             QuickAlarmDialog(
                 onDismiss = { isQuickAlarmOpen = false },
-                onSaveQuickAlarm = { mins, sound, vol, vib ->
-                    onSaveQuickAlarm(mins, sound, vol, vib)
+                onSaveQuickAlarm = { mins, ringSec, sound, vol, vib ->
+                    onSaveQuickAlarm(mins, ringSec, sound, vol, vib)
                     isQuickAlarmOpen = false
                 }
             )
@@ -583,21 +606,22 @@ private fun AlarmCardItem(
                     modifier = Modifier.padding(start = 4.dp)
                 )
 
-                // Mission Indicator Badge
-                Box(
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .size(17.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (alarm.isEnabled) Color(0xFF6B7280) else Color(0xFF9CA3AF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "+",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                // Mission Indicator Badges
+                val missions = alarm.getMissions()
+                if (missions.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 8.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        missions.forEach { mission ->
+                            AlarmMissionBadge(
+                                mission = mission,
+                                isEnabled = alarm.isEnabled
+                            )
+                        }
+                    }
                 }
             }
 
@@ -670,3 +694,88 @@ private fun AlarmCardItem(
         }
     }
 }
+
+private data class MissionBadgeConfig(
+    val bgColor: Color,
+    val tintColor: Color,
+    val iconRes: Int? = null,
+    val vector: ImageVector? = null
+)
+
+@Composable
+private fun AlarmMissionBadge(
+    mission: DismissType,
+    isEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val isDark = LocalIsDarkMode.current
+
+    val config = when (mission) {
+        DismissType.MATH -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x3322C55E) else Color(0xFFEBF8EE),
+            tintColor = if (isDark) Color(0xFF4ADE80) else Color(0xFF16A34A),
+            iconRes = R.drawable.ic_mission_math
+        )
+        DismissType.SHAKE -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x33F59E0B) else Color(0xFFFFF4E6),
+            tintColor = if (isDark) Color(0xFFFBBF24) else Color(0xFFD97706),
+            iconRes = R.drawable.ic_mission_shake
+        )
+        DismissType.STEP -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x33F97316) else Color(0xFFFEF2EE),
+            tintColor = if (isDark) Color(0xFFFB923C) else Color(0xFFEA580C),
+            iconRes = R.drawable.ic_mission_step_exact
+        )
+        DismissType.QR_CODE -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x33A855F7) else Color(0xFFF5EEFE),
+            tintColor = if (isDark) Color(0xFFC084FC) else Color(0xFF7C3AED),
+            iconRes = R.drawable.ic_mission_qr_exact
+        )
+        DismissType.TYPING -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x338B5CF6) else Color(0xFFF3EEFD),
+            tintColor = if (isDark) Color(0xFFA78BFA) else Color(0xFF6D28D9),
+            iconRes = R.drawable.ic_mission_typing
+        )
+        DismissType.COLOR_TILES -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x3322C55E) else Color(0xFFE8F5E9),
+            tintColor = if (isDark) Color(0xFF4ADE80) else Color(0xFF2E7D32),
+            iconRes = R.drawable.ic_mission_colortiles
+        )
+        DismissType.OFF -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x3364748B) else Color(0xFFF1F5F9),
+            tintColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+            iconRes = R.drawable.ic_mission_off
+        )
+        else -> MissionBadgeConfig(
+            bgColor = if (isDark) Color(0x3394A3B8) else Color(0xFFF1F5F9),
+            tintColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
+            iconRes = R.drawable.ic_mission_off
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isEnabled) config.bgColor else (if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)))
+            .testTag("alarm_mission_badge_${mission.name.lowercase()}"),
+        contentAlignment = Alignment.Center
+    ) {
+        if (config.iconRes != null) {
+            Icon(
+                painter = painterResource(id = config.iconRes),
+                contentDescription = mission.title,
+                tint = if (isEnabled) Color.Unspecified else (if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)),
+                modifier = Modifier.size(15.dp)
+            )
+        } else if (config.vector != null) {
+            Icon(
+                imageVector = config.vector,
+                contentDescription = mission.title,
+                tint = if (isEnabled) config.tintColor else (if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+

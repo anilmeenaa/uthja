@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Weekly Sleep Duration Patterns - Recharts</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: transparent;
+      color: #1E232A;
+      overflow-x: hidden;
+      padding: 4px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* Mode Pill Tabs */
+    .tab-pills {
+      display: flex;
+      background: #F1F4F9;
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 12px;
+      gap: 4px;
+    }
+
+    .tab-pill {
+      flex: 1;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #64748B;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-pill.active {
+      background: #FFFFFF;
+      color: #1E232A;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Chart Container Card */
+    .chart-wrapper {
+      background: #FFFFFF;
+      border-radius: 20px;
+      border: 1px solid #ECEFF4;
+      box-shadow: 0 4px 18px rgba(120, 92, 216, 0.05);
+      padding: 14px 10px 10px 4px;
+      position: relative;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px 10px 10px;
+    }
+
+    .chart-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1E232A;
+    }
+
+    .chart-subtitle {
+      font-size: 11px;
+      color: #8A94A6;
+      font-weight: 500;
+    }
+
+    .badge-recharts {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      background: #F3EFFE;
+      color: #785CD8;
+      border: 1px solid #E3D9FC;
+      border-radius: 8px;
+      padding: 3px 7px;
+    }
+
+    /* Custom Tooltip Styling */
+    .custom-tooltip {
+      background: rgba(26, 32, 44, 0.94);
+      color: #FFFFFF;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      max-width: 200px;
+      backdrop-filter: blur(8px);
+    }
+
+    .tooltip-date {
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #F8FAFC;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 3px;
+    }
+
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 3px 0;
+      color: #CBD5E1;
+    }
+
+    .tooltip-val {
+      font-weight: 600;
+      color: #FFFFFF;
+    }
+
+    .tooltip-val.highlight {
+      color: #C084FC;
+    }
+
+    .tooltip-val.green {
+      color: #4ADE80;
+    }
+
+    .tooltip-val.amber {
+      color: #FBBF24;
+    }
+
+    /* Selected Day Callout Card */
+    .day-callout {
+      margin-top: 12px;
+      background: #F9F7FE;
+      border: 1px solid #EAE3FC;
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .day-callout-left {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .day-callout-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #372A68;
+    }
+
+    .day-callout-desc {
+      font-size: 11px;
+      color: #6E619E;
+      margin-top: 2px;
+    }
+
+    .day-callout-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #785CD8;
+      color: #FFFFFF;
+      white-space: nowrap;
+    }
+
+    /* Quick Stats Mini Grid */
+    .quick-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .stat-pill {
+      background: #FFFFFF;
+      border: 1px solid #ECEFF4;
+      border-radius: 12px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    .stat-pill-label {
+      font-size: 9.5px;
+      color: #8A94A6;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .stat-pill-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1E232A;
+      margin-top: 2px;
+    }
+  </style>
+
+  <!-- Local Bundled React, ReactDOM, PropTypes and Recharts -->
+  <script src="js/prop-types.min.js"></script>
+  <script src="js/react.production.min.js"></script>
+  <script src="js/react-dom.production.min.js"></script>
+  <script src="js/recharts.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    (function () {
+      const e = React.createElement;
+      const {
+        ResponsiveContainer,
+        ComposedChart,
+        BarChart,
+        LineChart,
+        Bar,
+        Line,
+        Area,
+        AreaChart,
+        XAxis,
+        YAxis,
+        CartesianGrid,
+        Tooltip,
+        Legend,
+        ReferenceLine,
+        Cell
+      } = Recharts;
+
+      // Default sample weekly sleep patterns computed from alarm history
+      const defaultData = [
+        {
+          dayOfWeek: "Mon",
+          fullDate: "Mon, Oct 6",
+          durationHours: 7.2,
+          durationFormatted: "7h 12m",
+          targetHours: 8.0,
+          trendHours: 7.1,
+          bedtime: "11:30 PM",
+          bedtimeMinutes: 23.5,
+          wakeAlarmTime: "06:42 AM",
+          wakeMinutes: 6.7,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Math Challenge",
+          dismissDelaySeconds: 28,
+          sleepScore: 84,
+          status: "Good"
+        },
+        {
+          dayOfWeek: "Tue",
+          fullDate: "Tue, Oct 7",
+          durationHours: 6.8,
+          durationFormatted: "6h 48m",
+          targetHours: 8.0,
+          trendHours: 7.0,
+          bedtime: "11:45 PM",
+          bedtimeMinutes: 23.75,
+          wakeAlarmTime: "06:33 AM",
+          wakeMinutes: 6.55,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Math Challenge",
+          dismissDelaySeconds: 45,
+          sleepScore: 78,
+          status: "Mild Deficit"
+        },
+        {
+          dayOfWeek: "Wed",
+          fullDate: "Wed, Oct 8",
+          durationHours: 8.1,
+          durationFormatted: "8h 06m",
+          targetHours: 8.0,
+          trendHours: 7.4,
+          bedtime: "11:00 PM",
+          bedtimeMinutes: 23.0,
+          wakeAlarmTime: "07:06 AM",
+          wakeMinutes: 7.1,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Shake Mission",
+          dismissDelaySeconds: 22,
+          sleepScore: 92,
+          status: "Optimal"
+        },
+        {
+          dayOfWeek: "Thu",
+          fullDate: "Thu, Oct 9",
+          durationHours: 6.4,
+          durationFormatted: "6h 24m",
+          targetHours: 8.0,
+          trendHours: 7.1,
+          bedtime: "12:15 AM",
+          bedtimeMinutes: 24.25,
+          wakeAlarmTime: "06:39 AM",
+          wakeMinutes: 6.65,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Math Challenge",
+          dismissDelaySeconds: 54,
+          sleepScore: 72,
+          status: "Deficit"
+        },
+        {
+          dayOfWeek: "Fri",
+          fullDate: "Fri, Oct 10",
+          durationHours: 7.6,
+          durationFormatted: "7h 36m",
+          targetHours: 8.0,
+          trendHours: 7.2,
+          bedtime: "11:15 PM",
+          bedtimeMinutes: 23.25,
+          wakeAlarmTime: "06:51 AM",
+          wakeMinutes: 6.85,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Color Tiles",
+          dismissDelaySeconds: 32,
+          sleepScore: 86,
+          status: "Good"
+        },
+        {
+          dayOfWeek: "Sat",
+          fullDate: "Sat, Oct 11",
+          durationHours: 8.8,
+          durationFormatted: "8h 48m",
+          targetHours: 8.0,
+          trendHours: 7.5,
+          bedtime: "11:45 PM",
+          bedtimeMinutes: 23.75,
+          wakeAlarmTime: "08:33 AM",
+          wakeMinutes: 8.55,
+          alarmName: "Weekend Rest",
+          alarmDismissType: "Typing Mission",
+          dismissDelaySeconds: 18,
+          sleepScore: 94,
+          status: "Recovery"
+        },
+        {
+          dayOfWeek: "Sun",
+          fullDate: "Sun, Oct 12",
+          durationHours: 7.8,
+          durationFormatted: "7h 48m",
+          targetHours: 8.0,
+          trendHours: 7.5,
+          bedtime: "11:10 PM",
+          bedtimeMinutes: 23.17,
+          wakeAlarmTime: "06:58 AM",
+          wakeMinutes: 6.97,
+          alarmName: "Rise & Focus",
+          alarmDismissType: "Math Challenge",
+          dismissDelaySeconds: 26,
+          sleepScore: 89,
+          status: "Optimal"
+        }
+      ];
+
+      function getColorForDuration(val, target) {
+        if (val >= target) return "#785CD8"; // Primary Lune Violet
+        if (val >= target - 0.8) return "#6366F1"; // Indigo
+        if (val >= target - 1.5) return "#38BDF8"; // Sky Blue
+        return "#FB923C"; // Coral Amber for deficit
+      }
+
+      function CustomTooltip({ active, payload, label }) {
+        if (active && payload && payload.length) {
+          const item = payload[0].payload;
+          return e(
+            "div",
+            { className: "custom-tooltip" },
+            e("div", { className: "tooltip-date" }, item.fullDate || label),
+            e(
+              "div",
+              { className: "tooltip-row" },
+              e("span", null, "Sleep Duration:"),
+              e("span", { className: "tooltip-val highlight" }, item.durationFormatted)
+            ),
+            e(
+              "div",
+              { className: "tooltip-row" },
+              e("span", null, "Alarm Wake:"),
+              e("span", { className: "tooltip-val" }, item.wakeAlarmTime)
+            ),
+            e(
+              "div",
+              { className: "tooltip-row" },
+              e("span", null, "Bedtime:"),
+              e("span", { className: "tooltip-val" }, item.bedtime)
+            ),
+            e(
+              "div",
+              { className: "tooltip-row" },
+              e("span", null, "Mission Solve:"),
+              e("span", { className: "tooltip-val green" }, item.dismissDelaySeconds + "s")
+            ),
+            e(
+              "div",
+              { className: "tooltip-row" },
+              e("span", null, "Status:"),
+              e("span", { className: "tooltip-val " + (item.status === "Optimal" ? "green" : "amber") }, item.status)
+            )
+          );
+        }
+        return null;
+      }
+
+      function SleepRechartsApp() {
+        const [data, setData] = React.useState(defaultData);
+        const [activeMode, setActiveMode] = React.useState("duration"); // duration | rhythm | speed
+        const [selectedIndex, setSelectedIndex] = React.useState(6); // Default Sunday
+
+        // Expose bridge function to update data from Kotlin Android app
+        React.useEffect(() => {
+          window.updateChartData = function (jsonString) {
+            try {
+              const parsed = typeof jsonString === "string" ? JSON.parse(jsonString) : jsonString;
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setData(parsed);
+                setSelectedIndex(parsed.length - 1);
+              }
+            } catch (err) {
+              console.error("Failed to parse weekly data:", err);
+            }
+          };
+
+          // Inform Android host that Recharts is ready
+          if (window.AndroidBridge && window.AndroidBridge.onChartReady) {
+            window.AndroidBridge.onChartReady();
+          }
+        }, []);
+
+        const selectedDay = data[selectedIndex] || data[data.length - 1];
+
+        // Summary Calculations
+        const avgHours = (data.reduce((acc, d) => acc + (d.durationHours || 0), 0) / data.length).toFixed(1);
+        const avgMins = Math.round(
+          (data.reduce((acc, d) => acc + ((d.durationHours || 0) * 60), 0) / data.length) % 60
+        );
+        const goalHours = selectedDay ? (selectedDay.targetHours || 8.0) : 8.0;
+        const totalDebt = (data.reduce((acc, d) => acc + ((d.durationHours || 0) - goalHours), 0)).toFixed(1);
+        const avgSolveSeconds = Math.round(
+          data.reduce((acc, d) => acc + (d.dismissDelaySeconds || 30), 0) / data.length
+        );
+
+        return e(
+          "div",
+          { className: "container" },
+
+          // Mode Tabs (Duration vs Timing vs Speed)
+          e(
+            "div",
+            { className: "tab-pills" },
+            e(
+              "div",
+              {
+                className: "tab-pill " + (activeMode === "duration" ? "active" : ""),
+                onClick: () => setActiveMode("duration")
+              },
+              "📊 Sleep Duration & Goal"
+            ),
+            e(
+              "div",
+              {
+                className: "tab-pill " + (activeMode === "rhythm" ? "active" : ""),
+                onClick: () => setActiveMode("rhythm")
+              },
+              "⏰ Bedtime & Wake Alarm"
+            ),
+            e(
+              "div",
+              {
+                className: "tab-pill " + (activeMode === "speed" ? "active" : ""),
+                onClick: () => setActiveMode("speed")
+              },
+              "⚡ Alarm Mission Speed"
+            )
+          ),
+
+          // Main Card
+          e(
+            "div",
+            { className: "chart-wrapper" },
+
+            // Header Row
+            e(
+              "div",
+              { className: "chart-header" },
+              e(
+                "div",
+                null,
+                e(
+                  "div",
+                  { className: "chart-title" },
+                  activeMode === "duration"
+                    ? "Weekly Sleep Duration"
+                    : activeMode === "rhythm"
+                    ? "Circadian Bedtime & Alarm"
+                    : "Mission Dismissal Duration"
+                ),
+                e(
+                  "div",
+                  { className: "chart-subtitle" },
+                  activeMode === "duration"
+                    ? "Correlated with wake-up alarm history"
+                    : "Wake-up regularity & bedtime drift"
+                    : "Reaction time to solve wake challenges"
+                )
+              ),
+              e(
+                "div",
+                { className: "badge-recharts" },
+                e("span", null, "●"),
+                e("span", null, "Recharts v2.12")
+              )
+            ),
+
+            // Render Recharts Responsive Container
+            e(
+              ResponsiveContainer,
+              { width: "100%", height: 230 },
+              activeMode === "duration"
+                ? e(
+                    ComposedChart,
+                    {
+                      data: data,
+                      margin: { top: 12, right: 10, left: -22, bottom: 0 },
+                      onClick: (state) => {
+                        if (state && state.activeTooltipIndex !== undefined) {
+                          setSelectedIndex(state.activeTooltipIndex);
+                          if (window.AndroidBridge && window.AndroidBridge.onDaySelected) {
+                            window.AndroidBridge.onDaySelected(state.activeTooltipIndex);
+                          }
+                        }
+                      }
+                    },
+                    e(CartesianGrid, { strokeDasharray: "3 3", vertical: false, stroke: "#F1F5F9" }),
+                    e(XAxis, {
+                      dataKey: "dayOfWeek",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#64748B", fontSize: 11, fontWeight: 600 }
+                    }),
+                    e(YAxis, {
+                      domain: [0, 10],
+                      ticks: [0, 2, 4, 6, 8, 10],
+                      unit: "h",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#94A3B8", fontSize: 10 }
+                    }),
+                    e(Tooltip, { content: e(CustomTooltip) }),
+                    e(ReferenceLine, {
+                      y: goalHours,
+                      stroke: "#F43F5E",
+                      strokeDasharray: "4 4",
+                      strokeWidth: 1.5,
+                      label: { value: "Goal 8h", position: "insideTopRight", fill: "#E11D48", fontSize: 10 }
+                    }),
+                    e(
+                      Bar,
+                      {
+                        dataKey: "durationHours",
+                        name: "Sleep Duration",
+                        radius: [7, 7, 2, 2],
+                        barSize: 24
+                      },
+                      data.map((entry, idx) =>
+                        e(Cell, {
+                          key: "cell-" + idx,
+                          fill: getColorForDuration(entry.durationHours, goalHours),
+                          opacity: selectedIndex === idx ? 1.0 : 0.75,
+                          stroke: selectedIndex === idx ? "#1E232A" : "none",
+                          strokeWidth: selectedIndex === idx ? 1.5 : 0
+                        })
+                      )
+                    ),
+                    e(Line, {
+                      type: "monotone",
+                      dataKey: "trendHours",
+                      name: "7-Day Trend",
+                      stroke: "#2C9C72",
+                      strokeWidth: 2.2,
+                      dot: { r: 3, fill: "#2C9C72" },
+                      activeDot: { r: 5 }
+                    })
+                  )
+                : activeMode === "rhythm"
+                ? e(
+                    LineChart,
+                    {
+                      data: data,
+                      margin: { top: 12, right: 10, left: -22, bottom: 0 },
+                      onClick: (state) => {
+                        if (state && state.activeTooltipIndex !== undefined) {
+                          setSelectedIndex(state.activeTooltipIndex);
+                        }
+                      }
+                    },
+                    e(CartesianGrid, { strokeDasharray: "3 3", vertical: false, stroke: "#F1F5F9" }),
+                    e(XAxis, {
+                      dataKey: "dayOfWeek",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#64748B", fontSize: 11, fontWeight: 600 }
+                    }),
+                    e(YAxis, {
+                      domain: [5, 10],
+                      unit: "h",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#94A3B8", fontSize: 10 }
+                    }),
+                    e(Tooltip, { content: e(CustomTooltip) }),
+                    e(Line, {
+                      type: "monotone",
+                      dataKey: "wakeMinutes",
+                      name: "Wake Alarm Time",
+                      stroke: "#F97316",
+                      strokeWidth: 2.5,
+                      dot: { r: 4, fill: "#F97316" }
+                    })
+                  )
+                : e(
+                    BarChart,
+                    {
+                      data: data,
+                      margin: { top: 12, right: 10, left: -22, bottom: 0 },
+                      onClick: (state) => {
+                        if (state && state.activeTooltipIndex !== undefined) {
+                          setSelectedIndex(state.activeTooltipIndex);
+                        }
+                      }
+                    },
+                    e(CartesianGrid, { strokeDasharray: "3 3", vertical: false, stroke: "#F1F5F9" }),
+                    e(XAxis, {
+                      dataKey: "dayOfWeek",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#64748B", fontSize: 11, fontWeight: 600 }
+                    }),
+                    e(YAxis, {
+                      domain: [0, 80],
+                      unit: "s",
+                      axisLine: false,
+                      tickLine: false,
+                      tick: { fill: "#94A3B8", fontSize: 10 }
+                    }),
+                    e(Tooltip, { content: e(CustomTooltip) }),
+                    e(
+                      Bar,
+                      {
+                        dataKey: "dismissDelaySeconds",
+                        name: "Seconds to Solve",
+                        fill: "#06B6D4",
+                        radius: [7, 7, 2, 2],
+                        barSize: 24
+                      },
+                      data.map((entry, idx) =>
+                        e(Cell, {
+                          key: "speed-cell-" + idx,
+                          fill: entry.dismissDelaySeconds < 30 ? "#10B981" : entry.dismissDelaySeconds < 50 ? "#06B6D4" : "#F59E0B"
+                        })
+                      )
+                    )
+                  )
+            )
+          ),
+
+          // Day Callout for Tapped / Selected Item
+          selectedDay
+            ? e(
+                "div",
+                { className: "day-callout" },
+                e(
+                  "div",
+                  { className: "day-callout-left" },
+                  e(
+                    "div",
+                    { className: "day-callout-title" },
+                    selectedDay.fullDate + " • " + selectedDay.alarmName
+                  ),
+                  e(
+                    "div",
+                    { className: "day-callout-desc" },
+                    "Bedtime: " +
+                      selectedDay.bedtime +
+                      " ➔ Alarm: " +
+                      selectedDay.wakeAlarmTime +
+                      " (" +
+                      selectedDay.alarmDismissType +
+                      " solved in " +
+                      selectedDay.dismissDelaySeconds +
+                      "s)"
+                  )
+                ),
+                e(
+                  "div",
+                  { className: "day-callout-badge" },
+                  selectedDay.durationFormatted
+                )
+              )
+            : null,
+
+          // Quick Summary Metrics Row
+          e(
+            "div",
+            { className: "quick-stats" },
+            e(
+              "div",
+              { className: "stat-pill" },
+              e("div", { className: "stat-pill-label" }, "Avg Sleep"),
+              e("div", { className: "stat-pill-val" }, avgHours + "h " + avgMins + "m")
+            ),
+            e(
+              "div",
+              { className: "stat-pill" },
+              e("div", { className: "stat-pill-label" }, "Goal Met"),
+              e(
+                "div",
+                { className: "stat-pill-val", style: { color: totalDebt >= 0 ? "#16A34A" : "#D97706" } },
+                (totalDebt >= 0 ? "+" : "") + totalDebt + "h"
+              )
+            ),
+            e(
+              "div",
+              { className: "stat-pill" },
+              e("div", { className: "stat-pill-label" }, "Wake Speed"),
+              e("div", { className: "stat-pill-val", style: { color: "#0D9488" } }, avgSolveSeconds + "s")
+            ),
+            e(
+              "div",
+              { className: "stat-pill" },
+              e("div", { className: "stat-pill-label" }, "Quality"),
+              e(
+                "div",
+                { className: "stat-pill-val", style: { color: "#785CD8" } },
+                selectedDay ? selectedDay.sleepScore + "/100" : "85/100"
+              )
+            )
+          )
+        );
+      }
+
+      ReactDOM.render(e(SleepRechartsApp), document.getElementById("root"));
+    })();
+  </script>
+</body>
+</html>

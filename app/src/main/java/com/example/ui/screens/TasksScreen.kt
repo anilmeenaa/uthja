@@ -1,27 +1,30 @@
 package com.example.ui.screens
 
-import android.content.Context
-import android.widget.Toast
+import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,1441 +33,1226 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhonelinkErase
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import com.example.ui.theme.LocalIsDarkMode
-import androidx.compose.material3.Surface
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.example.R
 import com.example.alarm.rememberAppleHaptics
 import com.example.data.model.TaskEntity
 import com.example.data.model.UserProfileEntity
+import com.example.ui.theme.LuneColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-/**
- * Tasks & Habits Screen matching the uploaded design:
- *
- * 1. Header:
- *    - "Good morning ☀️"
- *    - "Build a better you 💖"
- *    - Progress Pill Badge: "3/8 done" (with purple progress circle/pill)
- *
- * 2. Today's plan Card:
- *    - "Today’s plan ✦"
- *    - 4 core items: Drink water (checked), Meditation, 10-min mindful break (checked), Wind down at 10:30 PM
- *    - Checked/unchecked states with colored icons on the right
- *
- * 3. Two-Column Card Row:
- *    - Left: "12-day streak" with "You're glowing! 💖" and blooming cherry blossom tree artwork
- *    - Right: "Quick mood check-in" with 5 mood emoji circles (🙂, 😌, 😐, 🙁, 😫) & "Log mood" button
- *
- * 4. Wellness habits Section:
- *    - "Wellness habits" and "See all >"
- *    - 2-Column Grid (10 pastel cards with counters and circular colored '+' buttons):
- *      - Drink water (0/8 glasses)
- *      - Meditation (0/10 min)
- *      - Exercise (0/30 min)
- *      - Sleep early (Target 10:30 PM)
- *      - Read (0/20 min)
- *      - Healthy eating (0/3 meals)
- *      - Mindful break (0/10 min)
- *      - Morning routine (0/4 tasks)
- *      - Gratitude (0/3 things)
- *      - No social media (0/2 hours)
- *
- * 5. Bottom Action:
- *    - Dashed purple outline card: "+ Add custom habit or task"
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksScreen(
     tasks: List<TaskEntity>,
-    userProfile: UserProfileEntity?,
+    currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+    userProfile: UserProfileEntity? = null,
     onToggleTask: (TaskEntity) -> Unit,
-    onAddTask: (title: String, timePill: String?, iconType: String) -> Unit,
+    onAddTask: (title: String, timePill: String?, iconType: String, reminderTime: String?, scheduledDate: String?, isDaily: Boolean) -> Unit,
     onDeleteTask: (TaskEntity) -> Unit,
     onResetTasks: () -> Unit,
+    onUpdateTaskReminder: (TaskEntity, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val haptics = rememberAppleHaptics()
-    val prefs = remember { context.getSharedPreferences("wellness_habits_prefs", Context.MODE_PRIVATE) }
+    val scope = rememberCoroutineScope()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var taskToSetReminder by remember { mutableStateOf<TaskEntity?>(null) }
+    var isCompletedSectionExpanded by remember { mutableStateOf(true) }
 
-    // Wellness Habits state (persisted in SharedPreferences)
-    var waterCount by remember { mutableIntStateOf(prefs.getInt("habit_water", 0)) }
-    var meditationCount by remember { mutableIntStateOf(prefs.getInt("habit_meditation", 0)) }
-    var exerciseCount by remember { mutableIntStateOf(prefs.getInt("habit_exercise", 0)) }
-    var sleepEarlyActive by remember { mutableStateOf(prefs.getBoolean("habit_sleep_early", false)) }
-    var readCount by remember { mutableIntStateOf(prefs.getInt("habit_read", 0)) }
-    var healthyEatingCount by remember { mutableIntStateOf(prefs.getInt("habit_healthy_eating", 0)) }
-    var mindfulBreakCount by remember { mutableIntStateOf(prefs.getInt("habit_mindful_break", 0)) }
-    var morningRoutineCount by remember { mutableIntStateOf(prefs.getInt("habit_morning_routine", 0)) }
-    var gratitudeCount by remember { mutableIntStateOf(prefs.getInt("habit_gratitude", 0)) }
-    var noSocialMediaCount by remember { mutableIntStateOf(prefs.getInt("habit_no_social_media", 0)) }
+    // Track task IDs currently executing the checkmark scale + slide out animation
+    var completingTaskIds by remember { mutableStateOf(setOf<Long>()) }
 
-    // Mood Check-in state
-    var selectedMoodIndex by remember { mutableIntStateOf(prefs.getInt("last_mood_index", 1)) } // default: 😌 Good
-    var isMoodLoggedToday by remember { mutableStateOf(prefs.getBoolean("mood_logged_today", false)) }
-    var showStreakDialog by remember { mutableStateOf(false) }
-    var showAddCustomDialog by remember { mutableStateOf(false) }
-    var showAllHabitsDialog by remember { mutableStateOf(false) }
-    var taskToDelete by remember { mutableStateOf<TaskEntity?>(null) }
-
-    // Synchronize tasks if empty with the 4 default items from Today's plan
-    val displayTasks = remember(tasks) {
-        if (tasks.isNotEmpty()) {
-            tasks
-        } else {
-            listOf(
-                TaskEntity(id = 1L, title = "Drink water", iconType = "WATER", isCompleted = true, orderIndex = 0),
-                TaskEntity(id = 2L, title = "Meditation", iconType = "MEDITATION", isCompleted = false, orderIndex = 1),
-                TaskEntity(id = 3L, title = "10-min mindful break", iconType = "COFFEE", isCompleted = true, orderIndex = 2),
-                TaskEntity(id = 4L, title = "Wind down at", timePill = "10:30 PM", iconType = "MOON", isCompleted = false, orderIndex = 3)
-            )
-        }
+    // Dynamic date display (e.g. "Thursday, November 5")
+    val formattedDateSubtitle = remember(currentDate) {
+        formatDateToDisplay(currentDate)
     }
 
-    // Dynamic Overall Progress Calculation
-    val tasksDone = displayTasks.count { it.isCompleted }
-    val wellnessDone = listOf(
-        waterCount >= 8,
-        meditationCount >= 10,
-        exerciseCount >= 30,
-        sleepEarlyActive,
-        readCount >= 20,
-        healthyEatingCount >= 3,
-        mindfulBreakCount >= 10,
-        morningRoutineCount >= 4,
-        gratitudeCount >= 3,
-        noSocialMediaCount >= 2
-    ).count { it }
+    // 1. Strictly filter tasks scheduled for today (or recurring daily habits)
+    val todayTasks = remember(tasks, currentDate) {
+        tasks.filter { it.isScheduledForDate(currentDate) }
+    }
 
-    val totalCompletedCount = tasksDone + (if (wellnessDone > 0) 1 else 0)
-    val totalGoalCount = (displayTasks.size + 4).coerceAtLeast(8)
-    // Matches "3/8 done" from the screenshot
-    val displayDoneRatio = "$totalCompletedCount/$totalGoalCount done"
+    val activeTasks = remember(todayTasks, currentDate) {
+        todayTasks.filter { !it.isCompletedForDate(currentDate) }
+    }
+
+    val completedTasks = remember(todayTasks, currentDate) {
+        todayTasks.filter { it.isCompletedForDate(currentDate) }
+    }
+
+    val completedCount = completedTasks.size
+    val totalCount = todayTasks.size
+    val progress = if (totalCount > 0) completedCount.toFloat() / totalCount.toFloat() else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "task_progress"
+    )
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
-            .testTag("tasks_screen_root")
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 14.dp)
-                .padding(bottom = 90.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // ---------------------------------------------------------
-            // 1. TOP HEADER: "Good morning ☀️", "Build a better you 💖", "3/8 done"
-            // ---------------------------------------------------------
+            // Header: "Today's Routine" with dynamic date below
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 2.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(
-                        text = "Good morning ☀️",
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Build a better you 💖",
+                        text = "Today's Routine",
                         fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        letterSpacing = (-0.5).sp
+                        fontWeight = FontWeight.Bold,
+                        color = LuneColors.text
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = formattedDateSubtitle,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = LuneColors.primary
                     )
                 }
 
-                // Top-right Progress Pill Badge: "3/8 done"
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.2.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(22.dp))
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            haptics.pulseAppleButtonClick()
+                            onResetTasks()
+                        },
+                        modifier = Modifier.testTag("reset_tasks_button")
                     ) {
-                        // Purple Progress Ring
-                        Canvas(modifier = Modifier.size(16.dp)) {
-                            // Background track
-                            drawCircle(
-                                color = Color(0xFFE2E8F0),
-                                radius = size.minDimension / 2f,
-                                style = Stroke(width = 3.dp.toPx())
-                            )
-                            // Purple Progress Arc
-                            val sweep = ((totalCompletedCount.toFloat() / totalGoalCount.toFloat()) * 360f).coerceIn(0f, 360f)
-                            drawArc(
-                                color = Color(0xFF7C3AED),
-                                startAngle = -90f,
-                                sweepAngle = sweep,
-                                useCenter = false,
-                                style = Stroke(width = 3.dp.toPx())
-                            )
-                        }
-
-                        Text(
-                            text = displayDoneRatio,
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = "Reset Tasks",
+                            tint = LuneColors.textSoft
                         )
                     }
                 }
             }
 
-            // ---------------------------------------------------------
-            // 2. TODAY'S PLAN CARD
-            // ---------------------------------------------------------
-            Box(
+            // Summary Progress Card with smooth animated bar and counts
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = LuneColors.surfaceSoft),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation = 3.dp, shape = RoundedCornerShape(24.dp), spotColor = Color(0x10000000))
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
-                    .padding(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(18.dp)
                 ) {
-                    // Header: "Today’s plan ✦"
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Today’s plan",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = if (totalCount == 0) "No tasks scheduled for today" else "$completedCount of $totalCount completed",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = LuneColors.text
                         )
                         Text(
-                            text = "✦",
-                            fontSize = 18.sp,
+                            text = "${(progress * 100).toInt()}%",
+                            fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF43F5E)
+                            color = LuneColors.primary
                         )
                     }
-
-                    // Task List Items
-                    displayTasks.forEach { task ->
-                        TodayPlanTaskRow(
-                            task = task,
-                            onToggle = {
-                                haptics.pulseAppleButtonClick()
-                                onToggleTask(task)
-                            },
-                            onLongClick = {
-                                haptics.pulseAppleSelection()
-                                taskToDelete = task
-                            }
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = LuneColors.primary,
+                        trackColor = LuneColors.surfaceMuted,
+                        strokeCap = StrokeCap.Round
+                    )
                 }
             }
 
-            // ---------------------------------------------------------
-            // 3. TWO SIDE-BY-SIDE CARDS: 12-day streak & Quick mood check-in
-            // ---------------------------------------------------------
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // LEFT CARD: 12-day streak with blooming cherry blossom tree
+            // Task List
+            if (todayTasks.isEmpty()) {
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(230.dp)
-                        .shadow(elevation = 3.dp, shape = RoundedCornerShape(24.dp), spotColor = Color(0x10000000))
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
-                        .clickable {
-                            haptics.pulseAppleButtonClick()
-                            showStreakDialog = true
-                        }
-                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            // Row with title and hamburger menu icon
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No tasks planned for today",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = LuneColors.textSoft
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Tap + below to schedule today's morning or evening routine",
+                            fontSize = 13.sp,
+                            color = LuneColors.textMuted
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Active today tasks with slide-away exit transition
+                    items(activeTasks, key = { it.id }) { task ->
+                        val isCompleting = task.id in completingTaskIds
+
+                        AnimatedVisibility(
+                            visible = !isCompleting,
+                            enter = fadeIn(tween(220)) + expandVertically(),
+                            exit = slideOutHorizontally(
+                                targetOffsetX = { fullWidth -> fullWidth },
+                                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing)
+                            ) + fadeOut(animationSpec = tween(durationMillis = 220))
+                        ) {
+                            TaskRowItem(
+                                task = task,
+                                isCompleted = isCompleting,
+                                isCompleting = isCompleting,
+                                onToggle = {
+                                    if (task.id !in completingTaskIds) {
+                                        completingTaskIds = completingTaskIds + task.id
+                                        haptics.pulseAppleSuccess()
+                                        scope.launch {
+                                            delay(280L)
+                                            onToggleTask(task)
+                                            completingTaskIds = completingTaskIds - task.id
+                                        }
+                                    }
+                                },
+                                onDelete = {
+                                    haptics.pulseAppleButtonClick()
+                                    onDeleteTask(task)
+                                },
+                                onSetReminder = {
+                                    taskToSetReminder = task
+                                }
+                            )
+                        }
+                    }
+
+                    // Collapsible Completed Tasks Section at bottom
+                    if (completedTasks.isNotEmpty()) {
+                        item(key = "completed_section_header") {
+                            Spacer(modifier = Modifier.height(8.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        haptics.pulseAppleSelection()
+                                        isCompletedSectionExpanded = !isCompletedSectionExpanded
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "${userProfile?.streakDays?.coerceAtLeast(12) ?: 12}-day streak",
-                                    fontSize = 16.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-
-                                // Three horizontal purple bars (hamburger icon)
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                                    horizontalAlignment = Alignment.End,
-                                    modifier = Modifier.padding(top = 2.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Box(modifier = Modifier.size(width = 16.dp, height = 2.5.dp).clip(CircleShape).background(Color(0xFF7C3AED)))
-                                    Box(modifier = Modifier.size(width = 16.dp, height = 2.5.dp).clip(CircleShape).background(Color(0xFF7C3AED)))
-                                    Box(modifier = Modifier.size(width = 16.dp, height = 2.5.dp).clip(CircleShape).background(Color(0xFF7C3AED)))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = "You’re glowing! 💖",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        // Cherry Blossom Tree Artwork
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(140.dp),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_streak_tree),
-                                contentDescription = "Blossoming Cherry Streak Tree with Birds",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-
-                // RIGHT CARD: Quick mood check-in with 5 colored mood circles & "Log mood" button
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(230.dp)
-                        .shadow(elevation = 3.dp, shape = RoundedCornerShape(24.dp), spotColor = Color(0x10000000))
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
-                        .padding(16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Quick mood\ncheck-in",
-                                fontSize = 16.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                lineHeight = 20.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(3.dp))
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "How are you feeling? ",
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "✦",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF7C3AED)
-                                )
-                            }
-                        }
-
-                        // 5 Mood Emoji Faces in colored circles
-                        val moods = listOf(
-                            Triple("🙂", Color(0xFFFEF08A), Color(0xFFFACC15)), // Yellow - Great
-                            Triple("😌", Color(0xFFA7F3D0), Color(0xFF6EE7B7)), // Mint - Good
-                            Triple("😐", Color(0xFFDDD6FE), Color(0xFFC4B5FD)), // Lavender - Okay
-                            Triple("🙁", Color(0xFFFED7AA), Color(0xFFFDBA74)), // Peach - Low
-                            Triple("😫", Color(0xFFFBCFE8), Color(0xFFF472B6))  // Pink - Down
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            moods.forEachIndexed { index, (emoji, bg, border) ->
-                                val isSelected = selectedMoodIndex == index
-                                val scale by animateFloatAsState(targetValue = if (isSelected) 1.18f else 1.0f, label = "moodScale")
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .scale(scale)
-                                        .clip(CircleShape)
-                                        .background(bg)
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF7C3AED) else border,
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            haptics.pulseAppleSelection()
-                                            selectedMoodIndex = index
-                                            prefs.edit().putInt("last_mood_index", index).apply()
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF22C55E),
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                     Text(
-                                        text = emoji,
+                                        text = "Completed (${completedTasks.size})",
                                         fontSize = 14.sp,
-                                        textAlign = TextAlign.Center
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF475569)
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (isCompletedSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (isCompletedSectionExpanded) "Collapse" else "Expand",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        if (isCompletedSectionExpanded) {
+                            items(completedTasks, key = { "completed_${it.id}" }) { task ->
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut() + shrinkVertically()
+                                ) {
+                                    TaskRowItem(
+                                        task = task,
+                                        isCompleted = true,
+                                        isCompleting = false,
+                                        onToggle = {
+                                            haptics.pulseAppleButtonClick()
+                                            onToggleTask(task)
+                                        },
+                                        onDelete = {
+                                            haptics.pulseAppleButtonClick()
+                                            onDeleteTask(task)
+                                        },
+                                        onSetReminder = {
+                                            taskToSetReminder = task
+                                        }
                                     )
                                 }
                             }
                         }
+                    }
 
-                        // "Log mood" Button
-                        Button(
-                            onClick = {
-                                haptics.pulseAppleSuccess()
-                                isMoodLoggedToday = true
-                                prefs.edit().putBoolean("mood_logged_today", true).apply()
-                                val moodLabel = when (selectedMoodIndex) {
-                                    0 -> "Great 🙂"
-                                    1 -> "Good 😌"
-                                    2 -> "Okay 😐"
-                                    3 -> "Low 🙁"
-                                    else -> "Tired 😫"
-                                }
-                                Toast.makeText(context, "Mood recorded: $moodLabel! 💖", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .shadow(4.dp, RoundedCornerShape(22.dp), spotColor = Color(0x357C3AED))
-                                .testTag("log_mood_button"),
-                            shape = RoundedCornerShape(22.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isMoodLoggedToday) Color(0xFF8B5CF6) else Color(0xFF7C3AED),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = ButtonDefaults.ContentPadding
-                        ) {
-                            Text(
-                                text = if (isMoodLoggedToday) "Logged 💖" else "Log mood",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                    item {
+                        Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
             }
+        }
 
-            // ---------------------------------------------------------
-            // 4. WELLNESS HABITS SECTION (Header & 10 Pastel Grid Cards)
-            // ---------------------------------------------------------
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Wellness habits",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0F172A)
-                )
-
-                Text(
-                    text = "See all >",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF7C3AED),
-                    modifier = Modifier
-                        .clickable {
-                            haptics.pulseAppleButtonClick()
-                            showAllHabitsDialog = true
-                        }
-                        .padding(4.dp)
-                )
-            }
-
-            // 10 Habit Cards arranged in 5 rows of 2 columns
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // ROW 1: Drink water & Meditation
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WellnessHabitCard(
-                        title = "Drink water",
-                        subtitle = "$waterCount/8 glasses",
-                        cardBg = Color(0xFFEBF5FF),
-                        icon = Icons.Default.WaterDrop,
-                        iconTint = Color(0xFF0284C7),
-                        iconBg = Color(0xFFE0F2FE),
-                        buttonColor = Color(0xFF38BDF8),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            waterCount = (waterCount + 1).coerceAtMost(24)
-                            prefs.edit().putInt("habit_water", waterCount).apply()
-                        }
-                    )
-
-                    WellnessHabitCard(
-                        title = "Meditation",
-                        subtitle = "$meditationCount/10 min",
-                        cardBg = Color(0xFFFFF7ED),
-                        icon = Icons.Default.Person,
-                        iconTint = Color(0xFFEA580C),
-                        iconBg = Color(0xFFFFEDD5),
-                        buttonColor = Color(0xFFF97316),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            meditationCount = (meditationCount + 5).coerceAtMost(60)
-                            prefs.edit().putInt("habit_meditation", meditationCount).apply()
-                        }
-                    )
+        // FAB to add task matching Alarms screen styling & position above bottom nav
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 96.dp)
+                .size(60.dp)
+                .shadow(12.dp, CircleShape, spotColor = Color(0x66FF3B5C))
+                .clip(CircleShape)
+                .background(Color(0xFFFF3B5C))
+                .clickable {
+                    haptics.pulseAppleButtonClick()
+                    showAddDialog = true
                 }
-
-                // ROW 2: Exercise & Sleep early
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WellnessHabitCard(
-                        title = "Exercise",
-                        subtitle = "$exerciseCount/30 min",
-                        cardBg = Color(0xFFECFDF5),
-                        icon = Icons.Default.DirectionsRun,
-                        iconTint = Color(0xFF059669),
-                        iconBg = Color(0xFFD1FAE5),
-                        buttonColor = Color(0xFF10B981),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            exerciseCount = (exerciseCount + 10).coerceAtMost(120)
-                            prefs.edit().putInt("habit_exercise", exerciseCount).apply()
-                        }
-                    )
-
-                    WellnessHabitCard(
-                        title = "Sleep early",
-                        subtitle = "Target 10:30 PM",
-                        cardBg = Color(0xFFF3E8FF),
-                        icon = Icons.Default.Bedtime,
-                        iconTint = Color(0xFF7C3AED),
-                        iconBg = Color(0xFFEDE9FE),
-                        buttonColor = Color(0xFF8B5CF6),
-                        modifier = Modifier.weight(1f),
-                        isCompleted = sleepEarlyActive,
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            sleepEarlyActive = !sleepEarlyActive
-                            prefs.edit().putBoolean("habit_sleep_early", sleepEarlyActive).apply()
-                        }
-                    )
-                }
-
-                // ROW 3: Read & Healthy eating
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WellnessHabitCard(
-                        title = "Read",
-                        subtitle = "$readCount/20 min",
-                        cardBg = Color(0xFFFDF2F8),
-                        icon = Icons.Default.MenuBook,
-                        iconTint = Color(0xFFDB2777),
-                        iconBg = Color(0xFFFCE7F3),
-                        buttonColor = Color(0xFFEC4899),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            readCount = (readCount + 5).coerceAtMost(90)
-                            prefs.edit().putInt("habit_read", readCount).apply()
-                        }
-                    )
-
-                    WellnessHabitCard(
-                        title = "Healthy eating",
-                        subtitle = "$healthyEatingCount/3 meals",
-                        cardBg = Color(0xFFF0FDF4),
-                        icon = Icons.Default.Restaurant,
-                        iconTint = Color(0xFF16A34A),
-                        iconBg = Color(0xFFDCFCE7),
-                        buttonColor = Color(0xFF22C55E),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            healthyEatingCount = (healthyEatingCount + 1).coerceAtMost(6)
-                            prefs.edit().putInt("habit_healthy_eating", healthyEatingCount).apply()
-                        }
-                    )
-                }
-
-                // ROW 4: Mindful break & Morning routine
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WellnessHabitCard(
-                        title = "Mindful break",
-                        subtitle = "$mindfulBreakCount/10 min",
-                        cardBg = Color(0xFFFFF1F2),
-                        icon = Icons.Default.Psychology,
-                        iconTint = Color(0xFFE11D48),
-                        iconBg = Color(0xFFFFE4E6),
-                        buttonColor = Color(0xFFF43F5E),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            mindfulBreakCount = (mindfulBreakCount + 5).coerceAtMost(30)
-                            prefs.edit().putInt("habit_mindful_break", mindfulBreakCount).apply()
-                        }
-                    )
-
-                    WellnessHabitCard(
-                        title = "Morning routine",
-                        subtitle = "$morningRoutineCount/4 tasks",
-                        cardBg = Color(0xFFFEFCE8),
-                        icon = Icons.Default.WbSunny,
-                        iconTint = Color(0xFFD97706),
-                        iconBg = Color(0xFFFEF3C7),
-                        buttonColor = Color(0xFFF59E0B),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            morningRoutineCount = (morningRoutineCount + 1).coerceAtMost(4)
-                            prefs.edit().putInt("habit_morning_routine", morningRoutineCount).apply()
-                        }
-                    )
-                }
-
-                // ROW 5: Gratitude & No social media
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WellnessHabitCard(
-                        title = "Gratitude",
-                        subtitle = "$gratitudeCount/3 things",
-                        cardBg = Color(0xFFFAF5FF),
-                        icon = Icons.Default.Spa,
-                        iconTint = Color(0xFF9333EA),
-                        iconBg = Color(0xFFF3E8FF),
-                        buttonColor = Color(0xFFA855F7),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            gratitudeCount = (gratitudeCount + 1).coerceAtMost(10)
-                            prefs.edit().putInt("habit_gratitude", gratitudeCount).apply()
-                        }
-                    )
-
-                    WellnessHabitCard(
-                        title = "No social media",
-                        subtitle = "$noSocialMediaCount/2 hours",
-                        cardBg = Color(0xFFF0F9FF),
-                        icon = Icons.Default.PhonelinkErase,
-                        iconTint = Color(0xFF0284C7),
-                        iconBg = Color(0xFFE0F2FE),
-                        buttonColor = Color(0xFF0EA5E9),
-                        modifier = Modifier.weight(1f),
-                        onPlusClick = {
-                            haptics.pulseAppleButtonClick()
-                            noSocialMediaCount = (noSocialMediaCount + 1).coerceAtMost(12)
-                            prefs.edit().putInt("habit_no_social_media", noSocialMediaCount).apply()
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // ---------------------------------------------------------
-            // 5. BOTTOM ACTION: Solid Coral Rose "+ Add habit" button
-            // Exactly matching the attached UI design (Color #F74E76)
-            // ---------------------------------------------------------
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(28.dp),
-                        spotColor = Color(0x35F74E76),
-                        ambientColor = Color(0x15F74E76)
-                    )
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Color(0xFFF74E76))
-                    .clickable {
-                        haptics.pulseAppleButtonClick()
-                        showAddCustomDialog = true
-                    }
-                    .testTag("add_custom_habit_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Add habit",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+                .testTag("add_task_fab"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Add Task",
+                tint = Color.White,
+                modifier = Modifier.size(30.dp)
+            )
         }
     }
 
-    // -------------------------------------------------------------
-    // DIALOGS: Add custom habit/task, Streak details, See all habits
-    // -------------------------------------------------------------
-
-    // 1. Add Custom Habit or Task Dialog
-    if (showAddCustomDialog) {
-        AddCustomHabitDialog(
-            onDismiss = { showAddCustomDialog = false },
-            onSave = { title, timePill, iconType ->
-                onAddTask(title, timePill, iconType)
-                showAddCustomDialog = false
-                Toast.makeText(context, "Added to Today's plan! ✨", Toast.LENGTH_SHORT).show()
+    // Add Task Bottom Sheet with Presets, Date Scheduling (Today/Tomorrow/Calendar), and Custom Creator
+    if (showAddDialog) {
+        TaskCreationBottomSheet(
+            currentDate = currentDate,
+            onDismiss = { showAddDialog = false },
+            onConfirm = { title, pill, iconType, reminder, scheduledDate, isDaily ->
+                onAddTask(title, pill, iconType, reminder, scheduledDate, isDaily)
+                showAddDialog = false
             }
         )
     }
 
-    // 2. Streak Consistency Celebration Dialog
-    if (showStreakDialog) {
-        Dialog(
-            onDismissRequest = { showStreakDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .clip(RoundedCornerShape(28.dp))
-                    .border(1.dp, Color(0xFFFCE7F3), RoundedCornerShape(28.dp)),
-                color = Color.White,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFDE8ED)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Favorite,
-                                    contentDescription = null,
-                                    tint = Color(0xFFE11D48),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Text(
-                                text = "Consistency Streak",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { showStreakDialog = false },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = Color(0xFF94A3B8)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_streak_tree),
-                        contentDescription = "Streak Tree",
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(160.dp),
-                        contentScale = ContentScale.Fit
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "12 Days of Pure Flow! 🌸",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF0F172A)
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Your cherry tree is in full bloom. You’ve conquered your morning alarms and rituals 12 days in a row.",
-                        fontSize = 14.sp,
-                        color = Color(0xFF64748B),
-                        textAlign = TextAlign.Center,
-                        lineHeight = 20.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = { showStreakDialog = false },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
-                    ) {
-                        Text("Keep the momentum", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Delete Task Confirmation Dialog
-    if (taskToDelete != null) {
-        val task = taskToDelete!!
-        AlertDialog(
-            onDismissRequest = { taskToDelete = null },
-            title = { Text("Delete Task") },
-            text = { Text("Are you sure you want to remove \"${task.title}\" from Today's plan?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteTask(task)
-                        taskToDelete = null
-                        Toast.makeText(context, "Task removed", Toast.LENGTH_SHORT).show()
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { taskToDelete = null }) {
-                    Text("Cancel")
-                }
+    // Reminder Dialog
+    taskToSetReminder?.let { task ->
+        SetReminderDialog(
+            task = task,
+            onDismiss = { taskToSetReminder = null },
+            onSave = { newReminder ->
+                onUpdateTaskReminder(task, newReminder)
+                taskToSetReminder = null
             }
         )
-    }
-
-    // 4. See All Wellness Habits Summary
-    if (showAllHabitsDialog) {
-        Dialog(
-            onDismissRequest = { showAllHabitsDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .clip(RoundedCornerShape(28.dp)),
-                color = Color.White,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "All Wellness Habits ✨",
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
-                        IconButton(onClick = { showAllHabitsDialog = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF64748B))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "10 foundational daily habits designed to elevate mental clarity, sleep discipline, and bodily vitality.",
-                        fontSize = 13.5.sp,
-                        color = Color(0xFF64748B),
-                        lineHeight = 19.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    listOf(
-                        "💧 Drink water" to "$waterCount / 8 glasses target",
-                        "🧘 Meditation" to "$meditationCount / 10 min target",
-                        "🏃 Exercise" to "$exerciseCount / 30 min target",
-                        "🌙 Sleep early" to (if (sleepEarlyActive) "Active tonight ✓" else "Pending 10:30 PM"),
-                        "📖 Read" to "$readCount / 20 min target",
-                        "🍏 Healthy eating" to "$healthyEatingCount / 3 meals target",
-                        "🧠 Mindful break" to "$mindfulBreakCount / 10 min target",
-                        "☀️ Morning routine" to "$morningRoutineCount / 4 tasks target",
-                        "🌱 Gratitude" to "$gratitudeCount / 3 things target",
-                        "📵 No social media" to "$noSocialMediaCount / 2 hours target"
-                    ).forEach { (name, progress) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = name, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1E293B))
-                            Text(text = progress, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF7C3AED))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                prefs.edit().clear().apply()
-                                waterCount = 0
-                                meditationCount = 0
-                                exerciseCount = 0
-                                sleepEarlyActive = false
-                                readCount = 0
-                                healthyEatingCount = 0
-                                mindfulBreakCount = 0
-                                morningRoutineCount = 0
-                                gratitudeCount = 0
-                                noSocialMediaCount = 0
-                                onResetTasks()
-                                showAllHabitsDialog = false
-                                Toast.makeText(context, "Habit tallies reset for today", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Text("Reset counts", color = Color(0xFF64748B), fontSize = 13.sp)
-                        }
-
-                        Button(
-                            onClick = { showAllHabitsDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
 /**
- * Task Row inside "Today's plan" card:
- * Matches the exact design of the 4 items from the user screenshot.
+ * Backward compatibility overload for callers passing single 4-param onAddTask
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TodayPlanTaskRow(
-    task: TaskEntity,
-    onToggle: () -> Unit,
-    onLongClick: () -> Unit
+fun TasksScreen(
+    tasks: List<TaskEntity>,
+    userProfile: UserProfileEntity?,
+    onToggleTask: (TaskEntity) -> Unit,
+    onAddTask: (title: String, timePill: String?, iconType: String, reminderTime: String?) -> Unit,
+    onDeleteTask: (TaskEntity) -> Unit,
+    onResetTasks: () -> Unit,
+    onUpdateTaskReminder: (TaskEntity, String?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val isWater = task.iconType.equals("WATER", ignoreCase = true)
-    val isMeditation = task.iconType.equals("MEDITATION", ignoreCase = true)
-    val isCoffee = task.iconType.equals("COFFEE", ignoreCase = true) || task.iconType.equals("MINDFUL", ignoreCase = true)
-    val isMoon = task.iconType.equals("MOON", ignoreCase = true)
+    TasksScreen(
+        tasks = tasks,
+        currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+        userProfile = userProfile,
+        onToggleTask = onToggleTask,
+        onAddTask = { title, timePill, iconType, reminderTime, _, _ ->
+            onAddTask(title, timePill, iconType, reminderTime)
+        },
+        onDeleteTask = onDeleteTask,
+        onResetTasks = onResetTasks,
+        onUpdateTaskReminder = onUpdateTaskReminder,
+        modifier = modifier
+    )
+}
 
-    Row(
-        modifier = Modifier
+@Composable
+private fun TaskRowItem(
+    task: TaskEntity,
+    isCompleted: Boolean,
+    isCompleting: Boolean = false,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
+    onSetReminder: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val icon = getTaskIcon(task.iconType)
+
+    val checkBg by animateColorAsState(
+        targetValue = if (isCompleted) LuneColors.primary else Color.Transparent,
+        animationSpec = tween(durationMillis = 200),
+        label = "checkBg"
+    )
+
+    val checkBorderColor by animateColorAsState(
+        targetValue = if (isCompleted) LuneColors.primary else LuneColors.border,
+        animationSpec = tween(durationMillis = 200),
+        label = "checkBorder"
+    )
+
+    val checkScale by animateFloatAsState(
+        targetValue = if (isCompleting) 1.25f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "checkScale"
+    )
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCompleted) LuneColors.surfaceMuted.copy(alpha = 0.55f) else LuneColors.surfaceSoft
+        ),
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .testTag("task_item_${task.id}")
+            .clickable { onToggle() }
     ) {
-        // Left side: Checkbox circle + Task Title (+ optional time pill)
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Check Circle
-            if (task.isCompleted) {
-                // Purple filled circle with white check
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF7C3AED)),
-                    contentAlignment = Alignment.Center
+            // Checkbox with scale & pop animation
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .graphicsLayer {
+                        scaleX = checkScale
+                        scaleY = checkScale
+                    }
+                    .clip(CircleShape)
+                    .background(checkBg)
+                    .border(
+                        width = 2.dp,
+                        color = checkBorderColor,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isCompleted,
+                    enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
+                    exit = scaleOut() + fadeOut()
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Completed",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
-            } else {
-                // Unchecked circle with colored stroke
-                val strokeColor = if (isMoon) Color(0xFFF43F5E) else Color(0xFFA855F7)
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .border(1.6.dp, strokeColor, CircleShape)
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Task Icon
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(if (isCompleted) Color(0xFFF1F5F9) else LuneColors.primarySoft),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isCompleted) Color(0xFF94A3B8) else LuneColors.primary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            // Title + optional time pill badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Title & Meta details
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (task.isCompleted) Color(0xFF334155) else Color(0xFF0F172A)
+                    color = if (isCompleted) LuneColors.textSoft else LuneColors.text,
+                    textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
-                if (task.timePill != null) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFCE7F3))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    task.timePill?.let { pill ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isCompleted) Color(0xFFF1F5F9) else Color(0xFFFFEEF1))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = pill,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isCompleted) Color(0xFF94A3B8) else Color(0xFFFF3B5C)
+                            )
+                        }
+                    }
+
+                    if (!task.isDaily && !task.scheduledDate.isNullOrBlank()) {
                         Text(
-                            text = task.timePill,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF831843)
+                            text = "📅 ${formatDateToShort(task.scheduledDate)}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+
+                    task.reminderTime?.let { reminder ->
+                        Text(
+                            text = "🔔 $reminder",
+                            fontSize = 11.sp,
+                            color = if (isCompleted) Color(0xFF94A3B8) else LuneColors.primary
                         )
                     }
                 }
             }
-        }
 
-        // Right side: Colored icon matching the design
-        Box(
-            modifier = Modifier.size(28.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                isWater -> {
-                    Icon(
-                        imageVector = Icons.Default.WaterDrop,
-                        contentDescription = null,
-                        tint = Color(0xFF38BDF8),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                isMeditation -> {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color(0xFFF97316),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                isCoffee -> {
-                    Icon(
-                        imageVector = Icons.Default.Coffee,
-                        contentDescription = null,
-                        tint = Color(0xFFF43F5E),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                isMoon -> {
-                    Icon(
-                        imageVector = Icons.Default.Bedtime,
-                        contentDescription = null,
-                        tint = Color(0xFF8B5CF6),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                task.iconType.equals("BOOK", ignoreCase = true) -> {
-                    Icon(
-                        imageVector = Icons.Default.MenuBook,
-                        contentDescription = null,
-                        tint = Color(0xFFEC4899),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                task.iconType.equals("WORKOUT", ignoreCase = true) -> {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsRun,
-                        contentDescription = null,
-                        tint = Color(0xFF10B981),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                else -> {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color(0xFF7C3AED),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+            // Reminder & Delete actions
+            IconButton(
+                onClick = onSetReminder,
+                modifier = Modifier.size(34.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Set Reminder",
+                    tint = if (task.reminderTime != null) LuneColors.primary else LuneColors.textMuted,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(34.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = LuneColors.textMuted,
+                    modifier = Modifier.size(19.dp)
+                )
             }
         }
     }
 }
 
-/**
- * Individual Card inside "Wellness habits":
- * Pastel card background, rounded 18dp, circular icon container, title, subtitle, and circular '+' button.
- */
+private fun getTaskIcon(type: String): ImageVector {
+    return when (type.uppercase()) {
+        "WATER" -> Icons.Default.WaterDrop
+        "BOOK" -> Icons.Default.MenuBook
+        "MEDITATION" -> Icons.Default.SelfImprovement
+        "WORKOUT" -> Icons.Default.FitnessCenter
+        "COFFEE" -> Icons.Default.Coffee
+        "MOON" -> Icons.Default.NightsStay
+        else -> Icons.Default.Check
+    }
+}
+
+private data class RoutinePreset(
+    val title: String,
+    val pill: String,
+    val iconType: String,
+    val emoji: String,
+    val suggestedReminder: String? = null
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WellnessHabitCard(
-    title: String,
-    subtitle: String,
-    cardBg: Color,
-    icon: ImageVector,
-    iconTint: Color,
-    iconBg: Color,
-    buttonColor: Color,
-    modifier: Modifier = Modifier,
-    isCompleted: Boolean = false,
-    onPlusClick: () -> Unit
+private fun TaskCreationBottomSheet(
+    currentDate: String,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, timePill: String?, iconType: String, reminderTime: String?, scheduledDate: String?, isDaily: Boolean) -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .height(72.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(cardBg)
-            .clickable(onClick = onPlusClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Left: Icon Circle + Title & Subtitle
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(iconBg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+    val context = LocalContext.current
+    val haptics = rememberAppleHaptics()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF64748B),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+    var title by remember { mutableStateOf("") }
+    var timePill by remember { mutableStateOf("") }
+    var selectedIcon by remember { mutableStateOf("WATER") }
+    var reminderTime by remember { mutableStateOf("") }
+
+    // Date scheduling options: "TODAY", "TOMORROW", "CUSTOM"
+    var selectedScheduleOption by remember { mutableStateOf("TODAY") }
+    var customScheduledDate by remember { mutableStateOf(currentDate) }
+    var isDaily by remember { mutableStateOf(true) }
+
+    val tomorrowDate = remember(currentDate) {
+        getTomorrowDateString(currentDate)
+    }
+
+    val presets = remember {
+        listOf(
+            RoutinePreset("Drink 500ml water", "2 glasses", "WATER", "💧", "07:00 AM"),
+            RoutinePreset("Morning sunlight", "10 min", "WORKOUT", "☀️", "07:15 AM"),
+            RoutinePreset("Mindfulness meditation", "10 min", "MEDITATION", "🧘", "07:30 AM"),
+            RoutinePreset("Morning walk & stretch", "20 min", "WORKOUT", "🏃", "07:45 AM"),
+            RoutinePreset("Mindful tea / coffee", "5 min", "COFFEE", "☕", "08:15 AM"),
+            RoutinePreset("Read 10 pages", "10 pages", "BOOK", "📖", "08:30 AM"),
+            RoutinePreset("Plan top 3 priorities", "5 min", "BOOK", "📝", "09:00 AM"),
+            RoutinePreset("Wind down & unplug", "10:30 PM", "MOON", "🌙", "10:30 PM")
+        )
+    }
+
+    val iconOptions = listOf(
+        "WATER" to Icons.Default.WaterDrop,
+        "BOOK" to Icons.Default.MenuBook,
+        "MEDITATION" to Icons.Default.SelfImprovement,
+        "WORKOUT" to Icons.Default.FitnessCenter,
+        "COFFEE" to Icons.Default.Coffee,
+        "MOON" to Icons.Default.NightsStay
+    )
+
+    // Android DatePickerDialog for custom future date selection
+    val showDatePicker = {
+        val cal = Calendar.getInstance()
+        val parts = customScheduledDate.split("-")
+        val y = parts.getOrNull(0)?.toIntOrNull() ?: cal.get(Calendar.YEAR)
+        val m = parts.getOrNull(1)?.toIntOrNull()?.minus(1) ?: cal.get(Calendar.MONTH)
+        val d = parts.getOrNull(2)?.toIntOrNull() ?: cal.get(Calendar.DAY_OF_MONTH)
+
+        DatePickerDialog(context, { _, year, month, dayOfMonth ->
+            val pickedCal = Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, dayOfMonth)
             }
+            customScheduledDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(pickedCal.time)
+            selectedScheduleOption = "CUSTOM"
+            isDaily = false
+        }, y, m, d).show()
+    }
 
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Right: Circular colored '+' button
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .padding(vertical = 12.dp)
+                    .width(40.dp)
+                    .height(4.dp)
                     .clip(CircleShape)
-                    .background(buttonColor)
-                    .clickable(onClick = onPlusClick),
-                contentAlignment = Alignment.Center
+                    .background(Color(0xFFE2E8F0))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isCompleted) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                Column {
+                    Text(
+                        text = "Add Routine Task",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B)
                     )
-                } else {
+                    Text(
+                        text = "Pick a routine preset or customize your schedule",
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF1F5F9))
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Increment",
-                        tint = Color.White,
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color(0xFF64748B),
                         modifier = Modifier.size(18.dp)
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Section 1: Presets
+            Text(
+                text = "⚡ Quick Routine Presets (Tap to use)",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Horizontal scrolling row of preset cards
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                presets.forEach { preset ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF8FAFC))
+                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
+                            .clickable {
+                                haptics.pulseAppleSelection()
+                                title = preset.title
+                                timePill = preset.pill
+                                selectedIcon = preset.iconType
+                                reminderTime = preset.suggestedReminder ?: ""
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(text = preset.emoji, fontSize = 16.sp)
+                                Text(
+                                    text = preset.title,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1E293B)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFFFEEF1))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = preset.pill,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFFF3B5C)
+                                    )
+                                }
+                                preset.suggestedReminder?.let {
+                                    Text(
+                                        text = "· 🔔 $it",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Section 2: Date Scheduling & Recurrence
+            Text(
+                text = "📅 Schedule Date",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Chip 1: Today
+                val isTodaySelected = selectedScheduleOption == "TODAY"
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isTodaySelected) Color(0xFF1E1B4B) else Color(0xFFF1F5F9))
+                        .clickable {
+                            haptics.pulseAppleSelection()
+                            selectedScheduleOption = "TODAY"
+                            customScheduledDate = currentDate
+                        }
+                        .padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Today",
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isTodaySelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isTodaySelected) Color.White else Color(0xFF334155)
+                    )
+                }
+
+                // Chip 2: Tomorrow
+                val isTomorrowSelected = selectedScheduleOption == "TOMORROW"
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isTomorrowSelected) Color(0xFF1E1B4B) else Color(0xFFF1F5F9))
+                        .clickable {
+                            haptics.pulseAppleSelection()
+                            selectedScheduleOption = "TOMORROW"
+                            customScheduledDate = tomorrowDate
+                            isDaily = false
+                        }
+                        .padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tomorrow",
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isTomorrowSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isTomorrowSelected) Color.White else Color(0xFF334155)
+                    )
+                }
+
+                // Chip 3: Calendar Date Picker
+                val isCustomSelected = selectedScheduleOption == "CUSTOM"
+                Box(
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isCustomSelected) Color(0xFF7C3AED) else Color(0xFFF1F5F9))
+                        .border(
+                            width = 1.dp,
+                            color = if (isCustomSelected) Color(0xFF7C3AED) else Color(0xFFE2E8F0),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .clickable {
+                            haptics.pulseAppleButtonClick()
+                            showDatePicker()
+                        }
+                        .padding(vertical = 11.dp, horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Pick date",
+                            tint = if (isCustomSelected) Color.White else Color(0xFF64748B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = if (isCustomSelected) formatDateToShort(customScheduledDate) else "Pick Date",
+                            fontSize = 13.sp,
+                            fontWeight = if (isCustomSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCustomSelected) Color.White else Color(0xFF334155),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Recurrence Switch: Repeat daily routine
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFF8FAFC))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(if (isDaily) Color(0xFFEDE9FE) else Color(0xFFF1F5F9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Repeat,
+                            contentDescription = null,
+                            tint = if (isDaily) Color(0xFF7C3AED) else Color(0xFF94A3B8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Repeat daily routine",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF1E293B)
+                        )
+                        Text(
+                            text = if (isDaily) "Appears every day in Today's Routine" else "Scheduled only for ${formatDateToShort(if (selectedScheduleOption == "TOMORROW") tomorrowDate else customScheduledDate)}",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+                Switch(
+                    checked = isDaily,
+                    onCheckedChange = {
+                        haptics.pulseAppleButtonClick()
+                        isDaily = it
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF7C3AED),
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color(0xFFCBD5E1)
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Section 3: Task Details Form fields
+            Text(
+                text = "📝 Task Details",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Task Title (e.g. Morning stretch)") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("task_title_input"),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = timePill,
+                    onValueChange = { timePill = it },
+                    label = { Text("Goal (e.g. 15 min)") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("task_duration_input"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = reminderTime,
+                    onValueChange = { reminderTime = it },
+                    label = { Text("Reminder (07:30 AM)") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("task_reminder_input"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text("Icon Category", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                iconOptions.forEach { (type, vector) ->
+                    val isSelected = selectedIcon == type
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Color(0xFFFF3B5C) else Color(0xFFF1F5F9))
+                            .border(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) Color(0xFFFF3B5C) else Color(0xFFE2E8F0),
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                haptics.pulseAppleSelection()
+                                selectedIcon = type
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = vector,
+                            contentDescription = type,
+                            tint = if (isSelected) Color.White else Color(0xFF475569),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Action Buttons
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        haptics.pulseAppleSuccess()
+                        val finalDate = when (selectedScheduleOption) {
+                            "TOMORROW" -> tomorrowDate
+                            "CUSTOM" -> customScheduledDate
+                            else -> currentDate
+                        }
+                        onConfirm(
+                            title.trim(),
+                            timePill.trim().ifBlank { null },
+                            selectedIcon,
+                            reminderTime.trim().ifBlank { null },
+                            if (isDaily) null else finalDate,
+                            isDaily
+                        )
+                    }
+                },
+                enabled = title.isNotBlank(),
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFF3B5C),
+                    disabledContainerColor = Color(0xFFFFCCD5),
+                    contentColor = Color.White,
+                    disabledContentColor = Color.White.copy(alpha = 0.7f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("confirm_add_task_button")
+            ) {
+                Text(
+                    text = if (isDaily) "Add to Routine" else "Schedule for ${formatDateToShort(if (selectedScheduleOption == "TOMORROW") tomorrowDate else customScheduledDate)}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
 
-/**
- * Dialog to add a custom habit or task into Today's plan
- */
 @Composable
-private fun AddCustomHabitDialog(
+private fun SetReminderDialog(
+    task: TaskEntity,
     onDismiss: () -> Unit,
-    onSave: (title: String, timePill: String?, iconType: String) -> Unit
+    onSave: (String?) -> Unit
 ) {
-    val haptics = rememberAppleHaptics()
-    var title by remember { mutableStateOf("") }
-    var timePill by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf("WATER") }
-
-    val iconChoices = listOf(
-        "WATER" to ("Water" to Icons.Default.WaterDrop),
-        "MEDITATION" to ("Mind" to Icons.Default.Person),
-        "COFFEE" to ("Break" to Icons.Default.Coffee),
-        "MOON" to ("Sleep" to Icons.Default.Bedtime),
-        "BOOK" to ("Read" to Icons.Default.MenuBook),
-        "WORKOUT" to ("Fitness" to Icons.Default.DirectionsRun),
-        "HEALTHY" to ("Food" to Icons.Default.Restaurant),
-        "SUN" to ("Morning" to Icons.Default.WbSunny),
-        "GRATITUDE" to ("Gratitude" to Icons.Default.Spa)
-    )
+    var reminderTime by remember { mutableStateOf(task.reminderTime ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Add Custom Habit or Task ✨",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF0F172A)
-            )
-        },
+        title = { Text("Task Reminder", fontWeight = FontWeight.Bold) },
         text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Enter reminder time for '${task.title}':", fontSize = 13.sp)
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Habit name (e.g. Journaling)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF7C3AED),
-                        unfocusedBorderColor = Color(0xFFE2E8F0)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = timePill,
-                    onValueChange = { timePill = it },
-                    label = { Text("Optional time badge (e.g. 10:30 PM)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF7C3AED),
-                        unfocusedBorderColor = Color(0xFFE2E8F0)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text(
-                    text = "Select Category Icon",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF475569)
-                )
-
-                Row(
+                    value = reminderTime,
+                    onValueChange = { reminderTime = it },
+                    label = { Text("e.g. 07:30 AM or 10:00 PM") },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    iconChoices.take(5).forEach { (key, pair) ->
-                        val isSelected = selectedIcon == key
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) Color(0xFF7C3AED) else Color(0xFFF1F5F9))
-                                .clickable {
-                                    haptics.pulseAppleSelection()
-                                    selectedIcon = key
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = pair.second,
-                                contentDescription = pair.first,
-                                tint = if (isSelected) Color.White else Color(0xFF475569),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (title.isNotBlank()) {
-                        haptics.pulseAppleSuccess()
-                        onSave(title.trim(), timePill.trim().ifBlank { null }, selectedIcon)
-                    }
+                    onSave(reminderTime.trim().ifBlank { null })
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                shape = RoundedCornerShape(16.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = LuneColors.primary)
             ) {
-                Text("Add Task", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF64748B))
+            Row {
+                if (!task.reminderTime.isNullOrBlank()) {
+                    TextButton(onClick = { onSave(null) }) {
+                        Text("Clear Reminder", color = Color(0xFFEF4444))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
             }
         }
     )
+}
+
+private fun formatDateToDisplay(dateStr: String): String {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val parsed = sdf.parse(dateStr)
+        if (parsed != null) {
+            SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(parsed)
+        } else {
+            SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+        }
+    } catch (_: Exception) {
+        SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date())
+    }
+}
+
+private fun formatDateToShort(dateStr: String): String {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val parsed = sdf.parse(dateStr)
+        if (parsed != null) {
+            SimpleDateFormat("MMM d", Locale.getDefault()).format(parsed)
+        } else {
+            dateStr
+        }
+    } catch (_: Exception) {
+        dateStr
+    }
+}
+
+private fun getTomorrowDateString(baseDateStr: String): String {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val cal = Calendar.getInstance()
+        val parsed = sdf.parse(baseDateStr)
+        if (parsed != null) cal.time = parsed
+        cal.add(Calendar.DAY_OF_YEAR, 1)
+        sdf.format(cal.time)
+    } catch (_: Exception) {
+        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+    }
 }

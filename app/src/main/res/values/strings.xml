@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">LUNE</string>
-    <string name="admin_receiver_label">LUNE Anti-Uninstall Protection</string>
+    <string name="app_name">Uthja</string>
+    <string name="admin_receiver_label">Uthja Anti-Uninstall Protection</string>
     <string name="admin_receiver_description">Prevents uninstalling or disabling the app to bypass morning wake-up alarms.</string>
 </resources>

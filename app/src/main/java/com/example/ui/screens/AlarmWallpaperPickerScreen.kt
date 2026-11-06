@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,17 +71,16 @@ import com.example.R
 import com.example.alarm.rememberAppleHaptics
 import com.example.data.model.WallpaperCatalog
 import com.example.data.model.WallpaperItem
+import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Alarm Wallpaper Selection Page matching the exact UI in the user attachment:
  * - Top back arrow with "Alarm wallpaper" centered title
- * - Filter chips: "📸 My Photos", "💖 Trending", "🌄 Motivation", "🪐 Space"
+ * - Filter chips: "📸 My Photos", "🌄 Motivation", "🪐 Space"
  * - Section 1 "📸 My Photos":
  *   - "Choose from Album" dashed card with '+' icon (Android Photo Picker integration)
  *   - Promo card: "Create your alarm with your favorite photos or videos"
- * - Section 2 "💖 Trending":
- *   - Horizontal cards (Meow Alarm, Screaming Cat, Dancing cat, Daily Schedule)
- *   - Displays checkmark on selected wallpaper item
  * - Section 3 "🌄 Motivation":
  *   - Horizontal cards (Wake up you..., Life gets better, Wake up & smile, Ambition)
  * - Floating action button for quick gallery photo picking
@@ -94,22 +94,62 @@ fun AlarmWallpaperPickerScreen(
 ) {
     val context = LocalContext.current
     val haptics = rememberAppleHaptics()
-    var selectedId by remember { mutableStateOf(currentWallpaperId) }
+    var selectedId by remember(currentWallpaperId) { mutableStateOf(currentWallpaperId) }
     var selectedCategoryFilter by remember { mutableStateOf("All") }
-    var customPickedUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Initialize customPickedUri from currently selected wallpaper if it's already a custom photo
+    var customPickedUri by remember(currentWallpaperId) {
+        val initialUri = if (currentWallpaperId.startsWith("custom_uri:")) {
+            Uri.parse(currentWallpaperId.removePrefix("custom_uri:"))
+        } else if (currentWallpaperId.startsWith("content://") || currentWallpaperId.startsWith("file://")) {
+            Uri.parse(currentWallpaperId)
+        } else {
+            null
+        }
+        mutableStateOf(initialUri)
+    }
 
     // Android Zero-Permission Visual Media Picker
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            customPickedUri = uri
+            // 1. Attempt to take persistable URI permission if applicable
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+                // Not all providers support persistable flags; copy below guarantees persistence
+            }
+
+            // 2. Persist to internal app storage so alarm ringing service and receiver always have 100% access
+            var finalUriString = uri.toString()
+            try {
+                val wallpapersDir = File(context.filesDir, "alarm_wallpapers").apply { mkdirs() }
+                val targetFile = File(wallpapersDir, "custom_wallpaper_${System.currentTimeMillis()}.jpg")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    finalUriString = Uri.fromFile(targetFile).toString()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AlarmWallpaperPicker", "Failed copying wallpaper image to internal storage", e)
+            }
+
+            val savedUri = Uri.parse(finalUriString)
+            customPickedUri = savedUri
+
             val customItem = WallpaperItem(
-                id = "custom_uri:$uri",
+                id = "custom_uri:$finalUriString",
                 title = "My Album Photo",
                 soundLabel = "My Photo",
                 category = "My Photos",
-                customUri = uri.toString(),
+                customUri = finalUriString,
                 gradientColors = listOf(Color(0xFF0F172A), Color(0xFF1E293B)),
                 accentColor = Color(0xFF38BDF8),
                 iconEmoji = "📸"
@@ -120,8 +160,22 @@ fun AlarmWallpaperPickerScreen(
         }
     }
 
+    val handleSaveAndDismiss = {
+        val chosenItem = WallpaperCatalog.findById(selectedId)
+        onWallpaperSelected(chosenItem)
+    }
+
     BackHandler {
-        onDismiss()
+        handleSaveAndDismiss()
+    }
+
+    val onSelectCard: (WallpaperItem) -> Unit = { item ->
+        haptics.pulseAppleSelection()
+        if (selectedId == item.id) {
+            onWallpaperSelected(item)
+        } else {
+            selectedId = item.id
+        }
     }
 
     val scrollState = rememberScrollState()
@@ -137,9 +191,9 @@ fun AlarmWallpaperPickerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(bottom = 80.dp)
+                .padding(bottom = 120.dp)
         ) {
-            // 1. TOP BAR (< back arrow + "Alarm wallpaper" title)
+            // 1. TOP BAR (< back arrow + "Alarm wallpaper" title + "Save" button)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -148,7 +202,7 @@ fun AlarmWallpaperPickerScreen(
                 IconButton(
                     onClick = {
                         haptics.pulseAppleButtonClick()
-                        onDismiss()
+                        handleSaveAndDismiss()
                     },
                     modifier = Modifier
                         .align(Alignment.CenterStart)
@@ -170,14 +224,31 @@ fun AlarmWallpaperPickerScreen(
                     color = Color(0xFF1E293B),
                     modifier = Modifier.align(Alignment.Center)
                 )
+
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        haptics.pulseAppleSuccess()
+                        handleSaveAndDismiss()
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .testTag("wallpaper_picker_save_top_button")
+                ) {
+                    Text(
+                        text = "Save",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0284C7)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
             // 2. HORIZONTAL FILTER CHIPS ROW
             val chipCategories = listOf(
+                Pair("Nature", "🏞️ Scenic Nature"),
                 Pair("My Photos", "📸 My Photos"),
-                Pair("Trending", "💖 Trending"),
                 Pair("Motivation", "🌄 Motivation"),
                 Pair("Space", "🪐 Space")
             )
@@ -218,6 +289,29 @@ fun AlarmWallpaperPickerScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // 2.5 SECTION: 🏞️ Scenic Nature (Default)
+            if (selectedCategoryFilter == "All" || selectedCategoryFilter == "Nature") {
+                SectionHeader(title = "🏞️ Scenic Nature (Default)")
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    WallpaperCatalog.NATURE_ITEMS.forEach { item ->
+                        WallpaperCard(
+                            item = item,
+                            isSelected = selectedId == item.id,
+                            onClick = { onSelectCard(item) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
             // 3. SECTION: 📸 My Photos
             if (selectedCategoryFilter == "All" || selectedCategoryFilter == "My Photos") {
                 SectionHeader(title = "📸 My Photos")
@@ -235,9 +329,25 @@ fun AlarmWallpaperPickerScreen(
                         isSelected = selectedId.startsWith("custom_uri:"),
                         onClick = {
                             haptics.pulseAppleButtonClick()
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
+                            if (customPickedUri != null && !selectedId.startsWith("custom_uri:")) {
+                                val uriStr = customPickedUri.toString()
+                                val customItem = WallpaperItem(
+                                    id = "custom_uri:$uriStr",
+                                    title = "My Album Photo",
+                                    soundLabel = "My Photo",
+                                    category = "My Photos",
+                                    customUri = uriStr,
+                                    gradientColors = listOf(Color(0xFF0F172A), Color(0xFF1E293B)),
+                                    accentColor = Color(0xFF38BDF8),
+                                    iconEmoji = "📸"
+                                )
+                                selectedId = customItem.id
+                                onWallpaperSelected(customItem)
+                            } else {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            }
                         }
                     )
 
@@ -256,32 +366,6 @@ fun AlarmWallpaperPickerScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // 4. SECTION: 💖 Trending
-            if (selectedCategoryFilter == "All" || selectedCategoryFilter == "Trending") {
-                SectionHeader(title = "💖 Trending")
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    WallpaperCatalog.TRENDING_ITEMS.forEach { item ->
-                        WallpaperCard(
-                            item = item,
-                            isSelected = selectedId == item.id,
-                            onClick = {
-                                selectedId = item.id
-                                haptics.pulseAppleSelection()
-                                onWallpaperSelected(item)
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-            }
 
             // 5. SECTION: 🌄 Motivation
             if (selectedCategoryFilter == "All" || selectedCategoryFilter == "Motivation") {
@@ -298,11 +382,7 @@ fun AlarmWallpaperPickerScreen(
                         WallpaperCard(
                             item = item,
                             isSelected = selectedId == item.id,
-                            onClick = {
-                                selectedId = item.id
-                                haptics.pulseAppleSelection()
-                                onWallpaperSelected(item)
-                            }
+                            onClick = { onSelectCard(item) }
                         )
                     }
                 }
@@ -325,11 +405,7 @@ fun AlarmWallpaperPickerScreen(
                         WallpaperCard(
                             item = item,
                             isSelected = selectedId == item.id,
-                            onClick = {
-                                selectedId = item.id
-                                haptics.pulseAppleSelection()
-                                onWallpaperSelected(item)
-                            }
+                            onClick = { onSelectCard(item) }
                         )
                     }
                 }
@@ -351,15 +427,93 @@ fun AlarmWallpaperPickerScreen(
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(20.dp)
-                .size(56.dp)
+                .padding(end = 20.dp, bottom = 84.dp)
+                .size(52.dp)
                 .testTag("floating_gallery_picker_button")
         ) {
             Icon(
                 imageVector = Icons.Default.AddPhotoAlternate,
                 contentDescription = "Pick custom wallpaper from album",
-                modifier = Modifier.size(26.dp)
+                modifier = Modifier.size(24.dp)
             )
+        }
+
+        // 8. FIXED BOTTOM APPLY & SAVE BAR
+        val activeItem = remember(selectedId) {
+            WallpaperCatalog.findById(selectedId)
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0f),
+                            Color.White.copy(alpha = 0.94f),
+                            Color.White
+                        )
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Mini preview thumbnail
+                Box(
+                    modifier = Modifier
+                        .size(width = 34.dp, height = 46.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Brush.linearGradient(activeItem.gradientColors))
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (activeItem.customUri != null) {
+                        AsyncImage(
+                            model = activeItem.customUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (activeItem.drawableRes != null) {
+                        Image(
+                            painter = painterResource(id = activeItem.drawableRes),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(text = activeItem.iconEmoji, fontSize = 15.sp)
+                    }
+                }
+
+                androidx.compose.material3.Button(
+                    onClick = {
+                        haptics.pulseAppleSuccess()
+                        onWallpaperSelected(activeItem)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("apply_wallpaper_button"),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E232A),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = "Save Wallpaper • ${activeItem.title}",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -589,8 +743,8 @@ private fun WallpaperCard(
             )
         }
 
-        // If card has quote text (like "Keep going, life gets better" or "Smile twin, you woke up")
-        if (item.quote != null) {
+        // If card has quote text (like gradient cards without image)
+        if (item.quote != null && item.drawableRes == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

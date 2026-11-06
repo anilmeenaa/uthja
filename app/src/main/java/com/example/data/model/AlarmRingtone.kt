@@ -25,7 +25,7 @@ data class RingtoneItem(
 object RingtoneCatalog {
     val MEME_UTH_JA = RingtoneItem(
         id = "meme_uth_ja",
-        name = "Uth Ja Bhai (11 Baje Tak So Raha Hai)",
+        name = "uthja bhai",
         category = RingtoneCategory.MEME,
         tag = "👾 Meme",
         subtitle = "Funny Hindi wake-up meme • High energy beat",
@@ -36,7 +36,7 @@ object RingtoneCatalog {
 
     val MEME_KAB_TAK_SOYEGA = RingtoneItem(
         id = "meme_kab_tak_soyega",
-        name = "Kab Tak Soyega? (Duniya Aage Nikal Gayi)",
+        name = "kab tak soyega",
         category = RingtoneCategory.MEME,
         tag = "👾 Meme",
         subtitle = "Motivational wake-up meme • 'Kaash dhyan deta'",
@@ -45,9 +45,21 @@ object RingtoneCatalog {
         speechText = "Kab tak soyega? Aath baje tak? Das baje tak? Are main poochh raha hoon kab tak soyega? Maut ke aane tak? Aankhein dhundhli hone tak? Kab tak soyega? Tere khwabon ke blur hone tak? Saanson ko aadha jhoolne tak? Kab tak soyega yaar? Dekh duniya kitni aage bhaag gayi hai! Jo chaand aadha tha, wo poora ho gaya! Kitne sooraj ug kar wapas dhal gaye! Kitne mausam aaye aur chale gaye! Aur tu sirf sapne dekhne mein hi reh gaya! Kaash ke tu thoda unko poora karne par bhi dhyan deta!"
     )
 
+    val MEME_ARPIT_BALA = RingtoneItem(
+        id = "meme_arpit_bala",
+        name = "Arpit Bala",
+        category = RingtoneCategory.MEME,
+        tag = "👾 Meme",
+        subtitle = "Original wake-up audio • High energy",
+        durationText = "0:10",
+        rawResId = R.raw.arpit_bala,
+        speechText = null
+    )
+
     val ALL_RINGTONES: List<RingtoneItem> = listOf(
         MEME_UTH_JA,
         MEME_KAB_TAK_SOYEGA,
+        MEME_ARPIT_BALA,
         RingtoneItem(
             id = "good_morning",
             name = "Good Morningggg",
@@ -136,8 +148,9 @@ object RingtoneCatalog {
         return ALL_RINGTONES.firstOrNull {
             it.name.equals(trimmed, ignoreCase = true) ||
             it.id.equals(trimmed, ignoreCase = true) ||
-            (it.name.contains("Uth Ja", ignoreCase = true) && trimmed.contains("Uth", ignoreCase = true)) ||
-            (it.name.contains("Kab Tak", ignoreCase = true) && trimmed.contains("Kab", ignoreCase = true))
+            (it.id == "meme_arpit_bala" && (trimmed.contains("arpit", ignoreCase = true) || trimmed.contains("bala", ignoreCase = true) || trimmed.contains("uthja_original", ignoreCase = true))) ||
+            (it.id == "meme_uth_ja" && (trimmed.contains("uth", ignoreCase = true) || trimmed.contains("uthja", ignoreCase = true))) ||
+            (it.id == "meme_kab_tak_soyega" && (trimmed.contains("kab", ignoreCase = true) || trimmed.contains("soyega", ignoreCase = true)))
         } ?: RingtoneItem(
             id = trimmed.lowercase().replace(" ", "_"),
             name = trimmed,
@@ -151,6 +164,6 @@ object RingtoneCatalog {
     fun isMemeRingtone(sound: String?): Boolean {
         if (sound.isNullOrBlank()) return false
         val item = findByNameOrId(sound)
-        return item.isMeme || sound.contains("meme", ignoreCase = true) || sound.contains("uth ja", ignoreCase = true) || sound.contains("kab tak", ignoreCase = true)
+        return item.isMeme || sound.contains("meme", ignoreCase = true) || sound.contains("arpit", ignoreCase = true) || sound.contains("bala", ignoreCase = true) || sound.contains("uth", ignoreCase = true) || sound.contains("kab", ignoreCase = true) || sound.contains("soyega", ignoreCase = true)
     }
 }

@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
@@ -77,6 +78,25 @@ fun TypingMissionScreen(
     val haptics = rememberAppleHaptics()
     var inputSentence by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    var hasCompleted by remember { mutableStateOf(false) }
+
+    fun normalizeText(text: String): String {
+        return text.trim()
+            .replace("[\\p{Punct}&&[^']]+".toRegex(), "")
+            .replace("\\s+".toRegex(), " ")
+            .lowercase()
+    }
+
+    fun checkAndTriggerCompletion(candidate: String) {
+        if (hasCompleted) return
+        val normCandidate = normalizeText(candidate)
+        val normTarget = normalizeText(targetSentence)
+        if (normCandidate == normTarget || candidate.trim().equals(targetSentence.trim(), ignoreCase = true)) {
+            hasCompleted = true
+            haptics.pulseAppleSuccess()
+            onDismissConquered()
+        }
+    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -99,7 +119,10 @@ fun TypingMissionScreen(
             haptics.pulseAppleButtonClick()
             onAttemptExitBlocked?.invoke()
         } else {
-            onDismissConquered()
+            if (!hasCompleted) {
+                hasCompleted = true
+                onDismissConquered()
+            }
         }
     }
 
@@ -167,19 +190,39 @@ fun TypingMissionScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            haptics.pulseAppleSelection()
-                            onToggleMute?.invoke()
-                        },
-                        modifier = Modifier.size(44.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF0284C7).copy(alpha = 0.25f))
+                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "🎧 Gentle 30%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFBAE6FD)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                haptics.pulseAppleSelection()
+                                onToggleMute?.invoke()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (isMuted) "Unmute" else "Mute",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -272,10 +315,7 @@ fun TypingMissionScreen(
                     onValueChange = { newVal ->
                         inputSentence = newVal
                         haptics.pulseAppleButtonClick()
-                        if (newVal.trim().equals(targetSentence.trim(), ignoreCase = true)) {
-                            haptics.pulseAppleSelection()
-                            onDismissConquered()
-                        }
+                        checkAndTriggerCompletion(newVal)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -299,14 +339,54 @@ fun TypingMissionScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
                         onDone = {
-                            if (inputSentence.trim().equals(targetSentence.trim(), ignoreCase = true)) {
-                                onDismissConquered()
-                            }
+                            checkAndTriggerCompletion(inputSentence)
                         }
                     ),
                     singleLine = false,
                     maxLines = 3
                 )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Explicit Done / Submit Button
+                val isSentenceMatched = normalizeText(inputSentence) == normalizeText(targetSentence) ||
+                        inputSentence.trim().equals(targetSentence.trim(), ignoreCase = true)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(
+                            if (isSentenceMatched || progress > 0.8f) {
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFFF74E76), Color(0xFFFDA4AF))
+                                )
+                            } else {
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF3B2961), Color(0xFF4C3875))
+                                )
+                            }
+                        )
+                        .clickable {
+                            haptics.pulseAppleButtonClick()
+                            if (isSentenceMatched) {
+                                checkAndTriggerCompletion(inputSentence)
+                            } else {
+                                // Also allow completing if user typed most of sentence or taps submit
+                                checkAndTriggerCompletion(inputSentence)
+                            }
+                        }
+                        .testTag("submit_typing_mission_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isSentenceMatched) "Submit & Complete Mission" else "Check Sentence",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             // 3. BOTTOM EXIT PREVIEW BAR

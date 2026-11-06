@@ -53,7 +53,13 @@ class ExampleRobolectricTest {
   fun read_appName_from_context() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("LUNE", appName)
+    assertEquals("Uthja", appName)
+  }
+
+  @Test
+  fun test_activity_launch() {
+    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+    assertNotNull(controller.get())
   }
 
   @Test
@@ -67,11 +73,34 @@ class ExampleRobolectricTest {
   @Test
   fun test_alarm_scheduler_future_time() {
     val now = Calendar.getInstance()
-    val nextTrigger = AlarmScheduler.calculateNextTriggerTime(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), "DAILY")
+    val nextTrigger = AlarmScheduler.calculateNextTriggerTime(
+      now.get(Calendar.HOUR_OF_DAY),
+      now.get(Calendar.MINUTE),
+      "DAILY"
+    )
     assertTrue(nextTrigger >= now.timeInMillis)
 
-    val remainingFormatted = AlarmScheduler.formatRemainingTime(System.currentTimeMillis() + 3_600_000L)
-    assertTrue(remainingFormatted.contains("Rings in"))
+    // Test countdown formatting
+    val testNow = 1_700_000_000_000L
+    // 8 hr 15 min away
+    val format8h15m = AlarmScheduler.formatRemainingTime(testNow + (8 * 3600 + 15 * 60) * 1000L, testNow)
+    assertEquals("Rings in 8 hr. 15 min", format8h15m)
+
+    // 45 min away
+    val format45m = AlarmScheduler.formatRemainingTime(testNow + 45 * 60 * 1000L, testNow)
+    assertEquals("Rings in 45 min", format45m)
+
+    // 2 hr 0 min away
+    val format2h = AlarmScheduler.formatRemainingTime(testNow + 2 * 3600 * 1000L, testNow)
+    assertEquals("Rings in 2 hr.", format2h)
+
+    // Under 1 min away
+    val format30s = AlarmScheduler.formatRemainingTime(testNow + 30 * 1000L, testNow)
+    assertEquals("Rings in less than 1 min", format30s)
+
+    // More than 24h away (e.g. 1 day 4 hr 20 min)
+    val format1d = AlarmScheduler.formatRemainingTime(testNow + (28 * 3600 + 20 * 60) * 1000L, testNow)
+    assertEquals("Rings in 1d 4 hr. 20 min", format1d)
   }
 
   @Test
@@ -95,5 +124,60 @@ class ExampleRobolectricTest {
     val restless = data.calculateRestlessMinutes()
     assertTrue("Total breakdown should be positive", deep > 0 && light > 0 && restless > 0)
     assertEquals(450, deep + light + restless)
+  }
+
+  @Test
+  fun test_main_activity_lifecycle_launches() {
+    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java)
+    val activity = controller.create().start().resume().get()
+    assertNotNull(activity)
+    controller.pause().stop().destroy()
+  }
+
+  @Test
+  fun test_alarm_entity_missions_resolution() {
+    // 1. Single mission: SHAKE
+    val shakeAlarm = AlarmEntity(
+      id = 1L,
+      title = "Shake Alarm",
+      hour = 6,
+      minute = 30,
+      dismissType = DismissType.SHAKE,
+      missions = "SHAKE"
+    )
+    assertEquals(listOf(DismissType.SHAKE), shakeAlarm.getMissions())
+
+    // 2. Multi-mission: MATH + STEP + TYPING
+    val multiAlarm = AlarmEntity(
+      id = 2L,
+      title = "Triple Challenge",
+      hour = 7,
+      minute = 0,
+      dismissType = DismissType.MATH,
+      missions = "MATH,STEP,TYPING"
+    )
+    assertEquals(listOf(DismissType.MATH, DismissType.STEP, DismissType.TYPING), multiAlarm.getMissions())
+
+    // 3. Explicit OFF mission (no challenges)
+    val offAlarm = AlarmEntity(
+      id = 3L,
+      title = "Quiet Alarm",
+      hour = 8,
+      minute = 0,
+      dismissType = DismissType.OFF,
+      missions = "OFF"
+    )
+    assertEquals(listOf(DismissType.OFF), offAlarm.getMissions())
+
+    // 4. Backward compatibility BOTH
+    val bothAlarm = AlarmEntity(
+      id = 4L,
+      title = "Both Alarm",
+      hour = 8,
+      minute = 30,
+      dismissType = DismissType.BOTH,
+      missions = "BOTH"
+    )
+    assertEquals(listOf(DismissType.MATH, DismissType.SHAKE), bothAlarm.getMissions())
   }
 }

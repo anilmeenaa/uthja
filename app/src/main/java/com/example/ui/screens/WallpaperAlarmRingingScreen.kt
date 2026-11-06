@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.alarm.rememberAppleHaptics
 import com.example.data.model.DismissType
 import com.example.data.model.WallpaperCatalog
@@ -130,7 +132,11 @@ fun WallpaperAlarmRingingScreen(
     // Lock back button while alarm is ringing
     BackHandler {
         haptics.pulseAppleButtonClick()
-        onAttemptExitBlocked()
+        if (state.isQuickAlarm) {
+            onStartMission() // Direct dismiss for quick alarm
+        } else {
+            onAttemptExitBlocked()
+        }
     }
 
     Box(
@@ -140,8 +146,14 @@ fun WallpaperAlarmRingingScreen(
     ) {
         // 1. FULL-SCREEN WALLPAPER BACKGROUND
         if (wallpaperItem.customUri != null) {
+            val imageModel = remember(wallpaperItem.customUri) {
+                ImageRequest.Builder(context)
+                    .data(android.net.Uri.parse(wallpaperItem.customUri))
+                    .crossfade(true)
+                    .build()
+            }
             AsyncImage(
-                model = wallpaperItem.customUri,
+                model = imageModel,
                 contentDescription = "Alarm Wallpaper",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -297,8 +309,8 @@ fun WallpaperAlarmRingingScreen(
                     color = Color.White.copy(alpha = 0.9f)
                 )
 
-                // Wallpaper Quote if available (e.g. "Keep going, life gets better" or "Smile twin, you woke up")
-                if (wallpaperItem.quote != null) {
+                // Wallpaper Quote if available and not already part of the artwork
+                if (wallpaperItem.quote != null && wallpaperItem.drawableRes == null) {
                     Spacer(modifier = Modifier.height(20.dp))
                     Box(
                         modifier = Modifier
@@ -320,38 +332,83 @@ fun WallpaperAlarmRingingScreen(
                 Spacer(modifier = Modifier.height(22.dp))
 
                 // Wake-Up Mission Indicator Badge
-                val missionLabel = when (state.dismissType) {
-                    DismissType.MATH -> "Math Challenge"
-                    DismissType.COLOR_TILES -> "Color Tiles Challenge"
-                    DismissType.TYPING -> "Typing Alert"
-                    DismissType.SHAKE -> "Physical Shake Challenge"
-                    DismissType.BOTH -> "Math & Shake Challenge"
-                    DismissType.OFF -> "Normal Wake-up"
+                val missionLabel = if (state.isQuickAlarm) {
+                    val remaining = (state.quickRingDurationSeconds - state.elapsedSeconds).coerceAtLeast(0)
+                    "⚡ Quick Alarm · Rings for ${state.quickRingDurationSeconds}s (${remaining}s left)"
+                } else if (state.totalMissions > 1) {
+                    "${state.totalMissions} Missions: " + state.missions.joinToString(" + ") { it.title }
+                } else {
+                    when (state.currentMission) {
+                        DismissType.MATH -> "Math Challenge"
+                        DismissType.COLOR_TILES -> "Color Tiles Challenge"
+                        DismissType.TYPING -> "Typing Alert"
+                        DismissType.SHAKE -> "Physical Shake Challenge"
+                        DismissType.STEP -> "Step Challenge"
+                        DismissType.QR_CODE -> "QR / Barcode Challenge"
+                        DismissType.BOTH -> "Math & Shake Challenge"
+                        DismissType.OFF -> "Normal Wake-up"
+                    }
                 }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF6366F1).copy(alpha = 0.85f))
-                        .border(1.dp, Color(0xFFA5B4FC).copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .background(if (state.isQuickAlarm) Color(0xFF0D9488).copy(alpha = 0.90f) else Color(0xFF6366F1).copy(alpha = 0.85f))
+                        .border(1.dp, if (state.isQuickAlarm) Color(0xFF5EEAD4).copy(alpha = 0.6f) else Color(0xFFA5B4FC).copy(alpha = 0.5f), RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 7.dp)
                 ) {
                     Text(
-                        text = "🎯 Wake-up mission: $missionLabel",
+                        text = if (state.isQuickAlarm) missionLabel else "🎯 Wake-up: $missionLabel",
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
+
+                if (state.isQuickAlarm) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .border(1.dp, Color(0xFF2DD4BF).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = "🌿 Birds Sound (Nature) Playing",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFCCFBF1)
+                        )
+                    }
+                } else if (state.gradualVolume || state.gentleMissionVolume) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = if (state.gradualVolume) "🌿 Gentle Wake-Up • Gradual Fade-In Active" else "🌿 Gentle Mission Audio Active",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFBAE6FD)
+                        )
+                    }
+                }
             }
 
-            // Bottom Area: Prominent "Start Mission" Button + Snooze + Anti-cheat note
+            // Bottom Area: Prominent "Start Mission" / "Dismiss Quick Alarm" Button + Snooze + Anti-cheat note
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // START MISSION BUTTON
+                // START MISSION / DISMISS BUTTON
                 Box(
                     modifier = Modifier
                         .scale(pulseScale)
@@ -360,11 +417,19 @@ fun WallpaperAlarmRingingScreen(
                         .clip(RoundedCornerShape(32.dp))
                         .background(
                             Brush.horizontalGradient(
-                                colors = listOf(
-                                    Color(0xFF0284C7),
-                                    Color(0xFF38BDF8),
-                                    Color(0xFF6366F1)
-                                )
+                                colors = if (state.isQuickAlarm) {
+                                    listOf(
+                                        Color(0xFF0F766E),
+                                        Color(0xFF0D9488),
+                                        Color(0xFF14B8A6)
+                                    )
+                                } else {
+                                    listOf(
+                                        Color(0xFF0284C7),
+                                        Color(0xFF38BDF8),
+                                        Color(0xFF6366F1)
+                                    )
+                                }
                             )
                         )
                         .border(1.5.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
@@ -372,7 +437,7 @@ fun WallpaperAlarmRingingScreen(
                             haptics.pulseSuccess()
                             onStartMission()
                         }
-                        .testTag("start_mission_button"),
+                        .testTag(if (state.isQuickAlarm) "dismiss_quick_alarm_button" else "start_mission_button"),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -387,7 +452,7 @@ fun WallpaperAlarmRingingScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.PlayArrow,
+                                imageVector = if (state.isQuickAlarm) Icons.Default.Check else Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(22.dp)
@@ -395,7 +460,7 @@ fun WallpaperAlarmRingingScreen(
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Start Mission",
+                            text = if (state.isQuickAlarm) "Dismiss Quick Alarm" else "Start Mission",
                             fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -405,7 +470,7 @@ fun WallpaperAlarmRingingScreen(
                 }
 
                 // Optional Emergency Snooze Button
-                if (onAttemptSnooze != null) {
+                if (!state.isQuickAlarm && onAttemptSnooze != null) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "Snooze 5 min",
@@ -440,7 +505,7 @@ fun WallpaperAlarmRingingScreen(
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "Power-off & Exit Protected · Complete mission to dismiss",
+                        text = if (state.isQuickAlarm) "⚡ Quick Alarm · No missions required • Auto-stops in ${state.quickRingDurationSeconds}s" else "Power-off & Exit Protected · Complete mission to dismiss",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFFE2E8F0)

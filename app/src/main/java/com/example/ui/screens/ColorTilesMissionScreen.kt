@@ -115,12 +115,22 @@ fun ColorTilesMissionScreen(
 
     val remainingTargets = tiles.count { it.isTarget && !it.isFound }
 
+    var hasCompleted by remember { mutableStateOf(false) }
+
+    fun triggerCompletion() {
+        if (!hasCompleted) {
+            hasCompleted = true
+            haptics.pulseAppleSuccess()
+            onDismissConquered()
+        }
+    }
+
     BackHandler {
         if (isLockedMission) {
             haptics.pulseAppleButtonClick()
             onAttemptExitBlocked?.invoke()
         } else {
-            onDismissConquered()
+            triggerCompletion()
         }
     }
 
@@ -159,7 +169,7 @@ fun ColorTilesMissionScreen(
                             if (isLockedMission) {
                                 onAttemptExitBlocked?.invoke()
                             } else {
-                                onDismissConquered()
+                                triggerCompletion()
                             }
                         },
                         modifier = Modifier.size(44.dp)
@@ -188,19 +198,39 @@ fun ColorTilesMissionScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            haptics.pulseAppleSelection()
-                            onToggleMute?.invoke()
-                        },
-                        modifier = Modifier.size(44.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF0284C7).copy(alpha = 0.25f))
+                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "🎧 Gentle 30%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFBAE6FD)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                haptics.pulseAppleSelection()
+                                onToggleMute?.invoke()
+                            },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (isMuted) "Unmute" else "Mute",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -299,7 +329,7 @@ fun ColorTilesMissionScreen(
                                                 tiles[index] = tile.copy(isFound = true)
                                                 if (tiles.count { it.isTarget && !it.isFound } == 0) {
                                                     // Conquered!
-                                                    onDismissConquered()
+                                                    triggerCompletion()
                                                 }
                                             } else {
                                                 haptics.pulseShake()
@@ -337,7 +367,7 @@ fun ColorTilesMissionScreen(
                         if (isLockedMission) {
                             onAttemptExitBlocked?.invoke()
                         } else {
-                            onDismissConquered()
+                            triggerCompletion()
                         }
                     }
                     .testTag("exit_colortiles_preview_button"),

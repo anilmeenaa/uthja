@@ -15,8 +15,11 @@ object AlarmScheduler {
     const val EXTRA_ALARM_TITLE = "extra_alarm_title"
     const val EXTRA_WAKE_MODE = "extra_wake_mode"
     const val EXTRA_DISMISS_TYPE = "extra_dismiss_type"
+    const val EXTRA_MISSIONS = "extra_missions"
     const val EXTRA_ALARM_SOUND = "extra_alarm_sound"
     const val EXTRA_ALARM_WALLPAPER = "extra_alarm_wallpaper"
+    const val EXTRA_GRADUAL_VOLUME = "extra_gradual_volume"
+    const val EXTRA_GENTLE_MISSION_VOLUME = "extra_gentle_mission_volume"
 
     fun scheduleAlarm(context: Context, alarm: AlarmEntity) {
         if (!alarm.isEnabled) {
@@ -27,14 +30,21 @@ object AlarmScheduler {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val triggerTimeMs = calculateNextTriggerTime(alarm.hour, alarm.minute, alarm.repeatDays)
 
+        val effectiveMissions = alarm.getMissions()
+        val missionsPayload = effectiveMissions.joinToString(",") { it.name }
+        val primaryDismissType = effectiveMissions.firstOrNull()?.name ?: alarm.dismissType.name
+
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = ACTION_TRIGGER
             putExtra(EXTRA_ALARM_ID, alarm.id)
             putExtra(EXTRA_ALARM_TITLE, alarm.title)
             putExtra(EXTRA_WAKE_MODE, alarm.wakeMode.name)
-            putExtra(EXTRA_DISMISS_TYPE, alarm.dismissType.name)
+            putExtra(EXTRA_DISMISS_TYPE, primaryDismissType)
+            putExtra(EXTRA_MISSIONS, missionsPayload)
             putExtra(EXTRA_ALARM_SOUND, alarm.sound)
             putExtra(EXTRA_ALARM_WALLPAPER, alarm.wallpaper)
+            putExtra(EXTRA_GRADUAL_VOLUME, alarm.gradualVolume)
+            putExtra(EXTRA_GENTLE_MISSION_VOLUME, alarm.gentleMissionVolume)
         }
 
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -51,9 +61,12 @@ object AlarmScheduler {
             putExtra(EXTRA_ALARM_ID, alarm.id)
             putExtra(EXTRA_ALARM_TITLE, alarm.title)
             putExtra(EXTRA_WAKE_MODE, alarm.wakeMode.name)
-            putExtra(EXTRA_DISMISS_TYPE, alarm.dismissType.name)
+            putExtra(EXTRA_DISMISS_TYPE, primaryDismissType)
+            putExtra(EXTRA_MISSIONS, missionsPayload)
             putExtra(EXTRA_ALARM_SOUND, alarm.sound)
             putExtra(EXTRA_ALARM_WALLPAPER, alarm.wallpaper)
+            putExtra(EXTRA_GRADUAL_VOLUME, alarm.gradualVolume)
+            putExtra(EXTRA_GENTLE_MISSION_VOLUME, alarm.gentleMissionVolume)
         }
         val showPendingIntent = PendingIntent.getActivity(
             context,
@@ -105,9 +118,15 @@ object AlarmScheduler {
         alarmManager.cancel(pendingIntent)
     }
 
-    fun calculateNextTriggerTime(hour: Int, minute: Int, repeatDays: String): Long {
-        val now = Calendar.getInstance()
+    fun calculateNextTriggerTime(
+        hour: Int,
+        minute: Int,
+        repeatDays: String,
+        fromTimeMs: Long = System.currentTimeMillis()
+    ): Long {
+        val now = Calendar.getInstance().apply { timeInMillis = fromTimeMs }
         val target = Calendar.getInstance().apply {
+            timeInMillis = fromTimeMs
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
             set(Calendar.SECOND, 0)
@@ -124,7 +143,7 @@ object AlarmScheduler {
             return target.timeInMillis
         }
 
-        // Repeating schedule
+        // Repeating schedule: look ahead across the full weekly cycle
         for (i in 0..7) {
             val candidate = (target.clone() as Calendar).apply {
                 add(Calendar.DAY_OF_YEAR, i)
@@ -144,40 +163,67 @@ object AlarmScheduler {
 
     private fun parseRepeatDays(repeatDays: String): Set<Int> {
         val result = mutableSetOf<Int>()
-        if (repeatDays.isBlank() || repeatDays == "ONCE") return result
-        if (repeatDays == "DAILY") {
+        val trimmed = repeatDays.trim()
+        if (trimmed.isBlank() || trimmed.equals("ONCE", ignoreCase = true)) return result
+
+        val upper = trimmed.uppercase()
+        if (upper == "DAILY" || upper == "EVERY DAY" || upper == "EVERYDAY") {
             return setOf(
                 Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY,
                 Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
             )
         }
-        val parts = repeatDays.split(",").map { it.trim().uppercase() }
+        if (upper == "WEEKDAYS" || upper == "WEEKDAY") {
+            return setOf(
+                Calendar.MONDAY, Calendar.TUESDAY,
+                Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY
+            )
+        }
+        if (upper == "WEEKENDS" || upper == "WEEKEND") {
+            return setOf(Calendar.SATURDAY, Calendar.SUNDAY)
+        }
+
+        val parts = upper.split(',', '|', ' ', ';').map { it.trim() }.filter { it.isNotEmpty() }
         for (part in parts) {
-            when (part) {
-                "SUN" -> result.add(Calendar.SUNDAY)
-                "MON" -> result.add(Calendar.MONDAY)
-                "TUE" -> result.add(Calendar.TUESDAY)
-                "WED" -> result.add(Calendar.WEDNESDAY)
-                "THU" -> result.add(Calendar.THURSDAY)
-                "FRI" -> result.add(Calendar.FRIDAY)
-                "SAT" -> result.add(Calendar.SATURDAY)
+            when {
+                part.startsWith("SUN") -> result.add(Calendar.SUNDAY)
+                part.startsWith("MON") -> result.add(Calendar.MONDAY)
+                part.startsWith("TUE") -> result.add(Calendar.TUESDAY)
+                part.startsWith("WED") -> result.add(Calendar.WEDNESDAY)
+                part.startsWith("THU") -> result.add(Calendar.THURSDAY)
+                part.startsWith("FRI") -> result.add(Calendar.FRIDAY)
+                part.startsWith("SAT") -> result.add(Calendar.SATURDAY)
             }
         }
         return result
     }
 
-    fun formatRemainingTime(triggerTimeMs: Long): String {
-        val now = System.currentTimeMillis()
-        val diffMs = (triggerTimeMs - now).coerceAtLeast(0)
-        val totalMinutes = diffMs / (60 * 1000)
-        val hours = totalMinutes / 60
+    fun formatRemainingTime(triggerTimeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+        val diffMs = (triggerTimeMs - nowMs).coerceAtLeast(0L)
+        val totalMinutes = diffMs / (60 * 1000L)
+        val days = totalMinutes / (24 * 60)
+        val hours = (totalMinutes % (24 * 60)) / 60
         val minutes = totalMinutes % 60
 
         return when {
-            hours > 0 && minutes > 0 -> "Rings in ${hours}h ${minutes}m"
-            hours > 0 -> "Rings in ${hours}h"
-            minutes > 0 -> "Rings in ${minutes}m"
-            else -> "Rings in less than 1m"
+            diffMs < 60_000L -> "Rings in less than 1 min"
+            days > 0 -> {
+                when {
+                    hours > 0 && minutes > 0 -> "Rings in ${days}d ${hours} hr. ${minutes} min"
+                    hours > 0 -> "Rings in ${days}d ${hours} hr."
+                    minutes > 0 -> "Rings in ${days}d ${minutes} min"
+                    else -> "Rings in ${days}d"
+                }
+            }
+            hours > 0 -> {
+                if (minutes > 0) {
+                    "Rings in $hours hr. $minutes min"
+                } else {
+                    "Rings in $hours hr."
+                }
+            }
+            minutes > 0 -> "Rings in $minutes min"
+            else -> "Rings in less than 1 min"
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.ui.dialogs
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -30,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -81,6 +83,11 @@ fun RingtonePickerDialog(
     var selectedCategory by remember { mutableStateOf(RingtoneCategory.ALL) }
     var previewingSoundName by remember { mutableStateOf<String?>(null) }
 
+    BackHandler {
+        soundManager.stopVibePreview()
+        onDismiss()
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             soundManager.stopVibePreview()
@@ -99,7 +106,7 @@ fun RingtonePickerDialog(
         modifier = modifier
             .fillMaxSize()
             .testTag("ringtone_picker_screen"),
-        color = Color(0xFFF8FAFC)
+        color = Color(0xFFF7F3F8)
     ) {
         Column(
             modifier = Modifier
@@ -107,65 +114,155 @@ fun RingtonePickerDialog(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Header Bar
+            // 1. TOP APP BAR WITH CLEAR HEADING
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFEDE9FE)),
-                        contentAlignment = Alignment.Center
+                    IconButton(
+                        onClick = {
+                            haptics.pulseAppleButtonClick()
+                            soundManager.stopVibePreview()
+                            onDismiss()
+                        },
+                        modifier = Modifier.testTag("ringtone_picker_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VolumeUp,
-                            contentDescription = null,
-                            tint = Color(0xFF7C3AED),
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF1E1E24),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    Column {
-                        Text(
-                            text = "Alarm ringtones",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Text(
-                            text = "Choose wake-up tone & meme audio",
-                            fontSize = 12.5.sp,
-                            color = Color(0xFF64748B)
-                        )
+
+                    Text(
+                        text = "Alarm Ringtone",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1C1A24)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .padding(end = 12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFEDE9FE))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "${filteredRingtones.size} Ringtones",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF7C3AED)
+                    )
+                }
+            }
+
+            // 2. PROMINENT PAGE TITLE & DESCRIPTION
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Big Bold Heading
+                Text(
+                    text = "Choose Alarm Ringtone",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1C1A24),
+                    lineHeight = 34.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Informative Subtitle
+                Text(
+                    text = "Select your wake-up alarm sound, melodic chime, or viral meme audio.",
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF6E6877),
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Currently Active Ringtone Banner
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (RingtoneCatalog.isMemeRingtone(currentSelected)) Color(0xFFEDE9FE) else Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = if (RingtoneCatalog.isMemeRingtone(currentSelected)) Color(0xFF7C3AED) else Color(0xFF334155),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Currently selected",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = currentSelected,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                        }
+
+                        if (RingtoneCatalog.isMemeRingtone(currentSelected)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFEDE9FE))
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "👾 Viral Meme",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF7C3AED)
+                                )
+                            }
+                        }
                     }
                 }
 
-                IconButton(
-                    onClick = {
-                        soundManager.stopVibePreview()
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE2E8F0))
-                        .testTag("close_ringtone_picker")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color(0xFF334155),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(14.dp))
             }
 
             // Category Filter Pills
@@ -173,7 +270,7 @@ fun RingtonePickerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = 24.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 RingtoneCategory.entries.forEach { category ->

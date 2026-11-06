@@ -39,8 +39,8 @@ fun WaveBackground(
                 .offset(x = (-90).dp, y = 80.dp)
                 .size(220.dp)
                 .clip(CircleShape)
-                .background(if (isDark) Color(0xFF4C2B6A) else LuneColors.surfaceGold)
-                .alpha(if (isDark) 0.12f else 0.18f)
+                .background(if (isDark) Color(0xFF4C2B6A) else LuneColors.surfaceLavender)
+                .alpha(if (isDark) 0.12f else 0.06f)
         )
 
         // Ambient decorative glow blob at bottom right
@@ -51,7 +51,7 @@ fun WaveBackground(
                 .size(180.dp)
                 .clip(CircleShape)
                 .background(if (isDark) Color(0xFF2E2452) else LuneColors.surfaceLavender)
-                .alpha(if (isDark) 0.15f else 0.20f)
+                .alpha(if (isDark) 0.15f else 0.08f)
         )
 
         content()
